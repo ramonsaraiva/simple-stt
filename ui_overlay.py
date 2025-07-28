@@ -53,27 +53,34 @@ class STTOverlay:
 
             # Configure window
             self.root.attributes("-topmost", True)  # Always on top
-            self.root.attributes("-alpha", 0.9)  # Slight transparency
+            self.root.attributes("-alpha", 0.95)  # Slight transparency
             self.root.resizable(False, False)
 
             # Create widgets first to get accurate window size
-            self.root.configure(bg="#2b2b2b")
+            # Tokyo Night background color
+            self.root.configure(bg="#1a1b26")
             self._create_widgets()
 
+            # Set minimum window size
+            self.root.minsize(300, 120)
+            
             # Update geometry to calculate size
             self.root.update_idletasks()
 
-            # Calculate center position
+            # Calculate center position with dynamic sizing
             screen_width = self.root.winfo_screenwidth()
             screen_height = self.root.winfo_screenheight()
-            window_width = self.root.winfo_reqwidth()
-            window_height = self.root.winfo_reqheight()
+            window_width = max(self.root.winfo_reqwidth(), 300)  # Minimum width
+            window_height = max(self.root.winfo_reqheight(), 120)  # Minimum height
             
             center_x = (screen_width - window_width) // 2
             center_y = (screen_height - window_height) // 2
 
             # Position window at center
             self.root.geometry(f"{window_width}x{window_height}+{center_x}+{center_y}")
+            
+            # Allow window to resize dynamically when content changes
+            self.root.bind('<Configure>', self._on_window_configure)
 
             # Handle window close event to terminate the process
             self.root.protocol("WM_DELETE_WINDOW", self._on_window_close)
@@ -88,41 +95,63 @@ class STTOverlay:
 
     def _create_widgets(self):
         """Create the UI widgets"""
+        # Tokyo Night color palette
+        bg_color = "#1a1b26"        # Background
+        text_primary = "#c0caf5"    # Primary text (light blue)
+        text_secondary = "#565f89"  # Secondary text (muted blue-gray)
+        accent_blue = "#7aa2f7"     # Blue accent
+        accent_green = "#9ece6a"    # Green accent
+        accent_yellow = "#e0af68"   # Yellow accent
+        accent_red = "#f7768e"      # Red accent
+        accent_purple = "#bb9af7"   # Purple accent
+        
         # Main frame
-        main_frame = tk.Frame(self.root, bg="#2b2b2b", padx=10, pady=8)
-        main_frame.pack()
+        main_frame = tk.Frame(self.root, bg=bg_color, padx=12, pady=10)
+        main_frame.pack(fill="both", expand=True)
 
-        # Status line
+        # Status line - with text wrapping
         self.labels["status"] = tk.Label(
             main_frame,
             text="⏹️ Idle",
-            bg="#2b2b2b",
-            fg="#ffffff",
+            bg=bg_color,
+            fg=text_primary,
             font=("Arial", 12, "bold"),
+            wraplength=400,  # Wrap text at 400 pixels
+            justify="left"
         )
-        self.labels["status"].pack(anchor="w")
+        self.labels["status"].pack(anchor="w", fill="x", pady=(0, 2))
 
         # Timer line
         self.labels["timer"] = tk.Label(
-            main_frame, text="00:00", bg="#2b2b2b", fg="#888888", font=("Monaco", 10)
+            main_frame, 
+            text="00:00", 
+            bg=bg_color, 
+            fg=text_secondary, 
+            font=("Monaco", 10)
         )
-        self.labels["timer"].pack(anchor="w")
+        self.labels["timer"].pack(anchor="w", pady=(0, 2))
 
-        # Model status line
+        # Model status line - with text wrapping
         self.labels["model"] = tk.Label(
             main_frame,
             text="⏳ Loading model...",
-            bg="#2b2b2b",
-            fg="#ffaa00",
+            bg=bg_color,
+            fg=accent_yellow,
             font=("Arial", 9),
+            wraplength=400,
+            justify="left"
         )
-        self.labels["model"].pack(anchor="w")
+        self.labels["model"].pack(anchor="w", fill="x", pady=(0, 2))
 
         # Profile line
         self.labels["profile"] = tk.Label(
-            main_frame, text="📝 general", bg="#2b2b2b", fg="#00aaff", font=("Arial", 9)
+            main_frame, 
+            text="📝 general", 
+            bg=bg_color, 
+            fg=accent_blue, 
+            font=("Arial", 9)
         )
-        self.labels["profile"].pack(anchor="w")
+        self.labels["profile"].pack(anchor="w", pady=(0, 0))
 
     def start_recording(self, profile="general"):
         """Signal that recording has started"""
@@ -184,15 +213,18 @@ class STTOverlay:
 
         logger.debug(f"Model status updated: {'ready' if ready else 'loading'}")
 
-    def set_status(self, status_text, color="#ffffff"):
+    def set_status(self, status_text, color="#c0caf5"):
         """Set custom status text"""
         if not self.enabled or self.root is None:
             return
 
         try:
-            self.root.after(
-                0, lambda: self.labels["status"].config(text=status_text, fg=color)
-            )
+            def update_status():
+                self.labels["status"].config(text=status_text, fg=color)
+                # Force window to recalculate size after text change
+                self.root.update_idletasks()
+                
+            self.root.after(0, update_status)
         except Exception as e:
             logger.error(f"Failed to update status: {e}")
 
@@ -210,14 +242,22 @@ class STTOverlay:
             return
 
         try:
+            # Tokyo Night colors for different states
+            accent_red = "#f7768e"      # Red accent
+            accent_yellow = "#e0af68"   # Yellow accent
+            accent_green = "#9ece6a"    # Green accent
+            accent_blue = "#7aa2f7"     # Blue accent
+            text_primary = "#c0caf5"    # Primary text
+            text_secondary = "#565f89"  # Secondary text
+            
             # Update status
             if self.is_recording:
                 if self.is_waiting_for_voice:
-                    self.labels["status"].config(text="⏳ Waiting for voice...", fg="#ffaa00")
+                    self.labels["status"].config(text="⏳ Waiting for voice...", fg=accent_yellow)
                 else:
-                    self.labels["status"].config(text="🎤 Recording", fg="#ff4444")
+                    self.labels["status"].config(text="🎤 Recording", fg=accent_red)
             else:
-                self.labels["status"].config(text="⏹️ Processing", fg="#ffaa00")
+                self.labels["status"].config(text="⏹️ Processing", fg=accent_yellow)
 
             # Update timer
             if self.start_time and self.is_recording:
@@ -225,21 +265,28 @@ class STTOverlay:
                 minutes = int(elapsed.total_seconds() // 60)
                 seconds = int(elapsed.total_seconds() % 60)
                 timer_text = f"{minutes:02d}:{seconds:02d}"
-                self.labels["timer"].config(text=timer_text, fg="#ffffff")
+                self.labels["timer"].config(text=timer_text, fg=text_primary)
             else:
-                self.labels["timer"].config(text="--:--", fg="#888888")
+                self.labels["timer"].config(text="--:--", fg=text_secondary)
 
             # Update model status
             if self.model_ready:
-                self.labels["model"].config(text="✅ Model ready", fg="#00ff00")
+                self.labels["model"].config(text="✅ Model ready", fg=accent_green)
             else:
-                self.labels["model"].config(text="⏳ Loading model...", fg="#ffaa00")
+                self.labels["model"].config(text="⏳ Loading model...", fg=accent_yellow)
 
             # Update profile
-            self.labels["profile"].config(text=f"📝 {self.current_profile}")
+            self.labels["profile"].config(text=f"📝 {self.current_profile}", fg=accent_blue)
 
         except Exception as e:
             logger.error(f"Failed to update display: {e}")
+
+    def _on_window_configure(self, event):
+        """Handle window resize events"""
+        # Only handle resize events for the main window, not child widgets
+        if event.widget == self.root:
+            # Update window position to stay centered if it grew
+            pass  # For now, just let it resize naturally
 
     def _on_window_close(self):
         """Handle window close event by terminating the entire process"""
@@ -365,7 +412,7 @@ class UIManager:
         if self.enabled and self.overlay:
             self.overlay.set_model_ready(ready)
 
-    def set_status(self, status_text, color="#ffffff"):
+    def set_status(self, status_text, color="#c0caf5"):
         """Set custom status"""
         if self.enabled and self.overlay:
             self.overlay.set_status(status_text, color)

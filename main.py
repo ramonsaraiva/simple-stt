@@ -111,17 +111,17 @@ def run_stt(profile=None, no_llm=False):
         if not audio_file:
             logger.warning("No audio recorded")
             print("❌ No audio recorded")
-            ui_manager.set_status("❌ No audio recorded", "#ff4444")
+            ui_manager.set_status("❌ No audio recorded", "#f7768e")
             return
 
         try:
             # Wait for model to finish loading (if it hasn't already)
             print("⏳ Ensuring model is ready...")
-            ui_manager.set_status("⏳ Waiting for model...", "#ffaa00")
+            ui_manager.set_status("⏳ Waiting for model...", "#e0af68")
             timeout = config.get("whisper.load_timeout", 60)
             if not stt_processor.wait_for_model(timeout):
                 print("❌ Failed to load Whisper model")
-                ui_manager.set_status("❌ Model loading failed", "#ff4444")
+                ui_manager.set_status("❌ Model loading failed", "#f7768e")
                 return
 
             # Update UI - model is ready
@@ -130,12 +130,12 @@ def run_stt(profile=None, no_llm=False):
             # Transcribe audio
             logger.info("Transcribing audio")
             print("🔄 Transcribing audio...")
-            ui_manager.set_status("🔄 Transcribing audio...", "#00aaff")
+            ui_manager.set_status("🔄 Transcribing audio...", "#7aa2f7")
             text = stt_processor.transcribe(audio_file)
             if not text:
                 logger.warning("No speech detected in audio")
                 print("❌ No speech detected")
-                ui_manager.set_status("❌ No speech detected", "#ff4444")
+                ui_manager.set_status("❌ No speech detected", "#f7768e")
                 return
 
             logger.info(f"Transcribed text: {text}")
@@ -148,11 +148,11 @@ def run_stt(profile=None, no_llm=False):
                 if profile:
                     logger.info(f"Refining text with LLM using profile: {profile}")
                     print(f"🔄 Refining text using '{profile}' profile...")
-                    ui_manager.set_status(f"🔄 Refining ({profile})...", "#00aaff")
+                    ui_manager.set_status(f"🔄 Refining ({profile})...", "#bb9af7")
                 else:
                     logger.info("Refining text with LLM using default profile")
                     print("🔄 Refining text...")
-                    ui_manager.set_status("🔄 Refining text...", "#00aaff")
+                    ui_manager.set_status("🔄 Refining text...", "#bb9af7")
 
                 refined_text = llm_refiner.refine_text(text, profile)
                 if not refined_text:
@@ -163,18 +163,18 @@ def run_stt(profile=None, no_llm=False):
                 # Skip LLM refinement, use raw transcription
                 logger.info("LLM refinement disabled, using raw transcription")
                 print("⚡ Using raw transcription (LLM disabled)")
-                ui_manager.set_status("⚡ Raw transcription", "#00aaff")
+                ui_manager.set_status("⚡ Raw transcription", "#7aa2f7")
                 refined_text = text
 
             # Handle clipboard/paste
             if config.get("clipboard.auto_paste", False):
                 clipboard_manager.paste_text(refined_text)
                 logger.info("Text auto-pasted to active window")
-                ui_manager.set_status("✅ Auto-pasted!", "#00ff00")
+                ui_manager.set_status("✅ Auto-pasted!", "#9ece6a")
             else:
                 clipboard_manager.copy_to_clipboard(refined_text)
                 logger.info("Text copied to clipboard")
-                ui_manager.set_status("✅ Copied to clipboard!", "#00ff00")
+                ui_manager.set_status("✅ Copied to clipboard!", "#9ece6a")
 
             print("✅ Processing complete!")
             logger.info("STT process completed successfully")
@@ -200,7 +200,7 @@ def run_stt(profile=None, no_llm=False):
         logger.error(f"Failed to start STT: {e}")
         print(f"❌ Failed to start STT: {e}")
         if ui_manager:
-            ui_manager.set_status("❌ System error", "#ff4444")
+            ui_manager.set_status("❌ System error", "#f7768e")
         sys.exit(1)
     finally:
         # Cleanup UI resources
