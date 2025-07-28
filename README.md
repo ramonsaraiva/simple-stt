@@ -51,7 +51,14 @@ A Python-based speech-to-text system that integrates with Hyprland. Trigger reco
 4. **Configure Hyprland**:
    Add to your `~/.config/hypr/hyprland.conf`:
    ```
+   # Default/General STT
    bind = ALT SHIFT, R, exec, cd /path/to/stt && python main.py
+   
+   # Context-specific shortcuts
+   bind = ALT SHIFT, S, exec, cd /path/to/stt && python main.py --profile slack
+   bind = ALT SHIFT, E, exec, cd /path/to/stt && python main.py --profile email
+   bind = ALT SHIFT, T, exec, cd /path/to/stt && python main.py --profile todo
+   bind = ALT SHIFT, O, exec, cd /path/to/stt && python main.py --profile obsidian
    ```
 
 ## Usage
@@ -61,6 +68,21 @@ A Python-based speech-to-text system that integrates with Hyprland. Trigger reco
 python main.py
 ```
 The system will **immediately** start recording while loading the Whisper model in the background. You can start speaking right away! When you stop speaking (silence detected), the system waits for model loading to complete (if needed) and then transcribes your audio.
+
+### Using Different Profiles
+```bash
+python main.py --profile slack       # Format for Slack messages
+python main.py --profile email       # Format as professional email
+python main.py --profile todo        # Create actionable todo items
+python main.py --profile obsidian    # Format as Obsidian markdown note
+python main.py --profile code_comment # Format as code documentation
+python main.py --profile meeting_notes # Structure as meeting notes
+```
+
+### List Available Profiles
+```bash
+python main.py --list-profiles
+```
 
 ### Tuning Mode
 ```bash

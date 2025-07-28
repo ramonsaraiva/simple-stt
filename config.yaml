@@ -17,11 +17,52 @@ whisper:
 llm:
   provider: openai  # openai or anthropic
   model: gpt-3.5-turbo
-  refinement_prompt: >
-    Please clean up and format this transcribed text, 
-    fixing any grammar issues and making it more readable 
-    while preserving the original meaning:
   max_tokens: 500
+  default_profile: general  # default profile to use
+  
+  # Different prompt profiles for different contexts
+  profiles:
+    general:
+      name: "General Text Cleanup"
+      prompt: >
+        Please clean up and format this transcribed text, 
+        fixing any grammar issues and making it more readable 
+        while preserving the original meaning:
+    
+    slack:
+      name: "Slack Message"
+      prompt: >
+        Convert this transcribed speech into a professional but friendly Slack message.
+        Fix grammar, make it concise, and ensure it's appropriate for workplace communication.
+        Use a casual but professional tone:
+    
+    email:
+      name: "Email"
+      prompt: >
+        Transform this transcribed speech into a well-structured email.
+        Add proper grammar, professional tone, and clear structure.
+        Make it concise but complete:
+    
+    todo:
+      name: "Todo/Task"
+      prompt: >
+        Convert this speech into a clear, actionable todo item or task description.
+        Make it specific, concise, and action-oriented.
+        Use bullet points if multiple tasks are mentioned:
+    
+    obsidian:
+      name: "Obsidian Note"
+      prompt: >
+        Format this transcribed text as a clean Obsidian markdown note.
+        Fix grammar, add appropriate markdown formatting, and structure it clearly.
+        Use ## headings and bullet points where appropriate:
+        
+    meeting_notes:
+      name: "Meeting Notes"
+      prompt: >
+        Structure this transcribed speech as organized meeting notes.
+        Use bullet points, identify action items, and make it scannable.
+        Highlight important decisions and next steps:
 
 clipboard:
   auto_paste: false
