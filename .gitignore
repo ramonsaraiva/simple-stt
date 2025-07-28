@@ -78,3 +78,6 @@ poetry.lock
 # Temporary files
 *.tmp
 *.temp
+
+# ai
+.claude
