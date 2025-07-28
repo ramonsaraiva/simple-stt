@@ -8,23 +8,7 @@ audio:
   max_recording_time: 120.0
   sample_rate: 16000
   silence_duration: 2.0
-  silence_threshold: !!python/object/apply:numpy._core.multiarray.scalar
-  - !!python/object/apply:numpy.dtype
-    args:
-    - f8
-    - false
-    - true
-    state: !!python/tuple
-    - 3
-    - <
-    - null
-    - null
-    - null
-    - -1
-    - -1
-    - 0
-  - !!binary |
-    I+KTcPDQLEA=
+  silence_threshold: 15
 clipboard:
   auto_paste: false
   paste_delay: 0.1
