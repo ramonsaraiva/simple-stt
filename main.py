@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import signal
 import sys
 
 from audio_recorder import AudioRecorder
@@ -18,6 +19,17 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(), logging.FileHandler("stt.log")],
 )
 logger = logging.getLogger(__name__)
+
+# Global flag for graceful shutdown
+_shutdown_requested = False
+
+def signal_handler(signum, frame):
+    """Handle SIGINT (Ctrl+C) to terminate immediately"""
+    global _shutdown_requested
+    _shutdown_requested = True
+    logger.info("Termination signal received, shutting down immediately")
+    print("\n🛑 Terminating process...")
+    sys.exit(0)
 
 
 def tune_threshold():
@@ -52,6 +64,9 @@ def run_stt(profile=None):
     ui_manager = None
     try:
         logger.info("Starting STT process")
+        
+        # Set up signal handler for Ctrl+C
+        signal.signal(signal.SIGINT, signal_handler)
 
         # Initialize components
         config = Config()

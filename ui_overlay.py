@@ -1,4 +1,5 @@
 import logging
+import os
 import threading
 import time
 from datetime import datetime
@@ -72,6 +73,9 @@ class STTOverlay:
 
             # Position window at center
             self.root.geometry(f"{window_width}x{window_height}+{center_x}+{center_y}")
+
+            # Handle window close event to terminate the process
+            self.root.protocol("WM_DELETE_WINDOW", self._on_window_close)
 
             self._update_display()
 
@@ -220,6 +224,12 @@ class STTOverlay:
 
         except Exception as e:
             logger.error(f"Failed to update display: {e}")
+
+    def _on_window_close(self):
+        """Handle window close event by terminating the entire process"""
+        logger.info("UI window closed, terminating process immediately")
+        print("\n🛑 Window closed, terminating process...")
+        os._exit(0)  # Force immediate termination
 
     def _ui_update_loop(self):
         """Background thread to update timer while recording"""
