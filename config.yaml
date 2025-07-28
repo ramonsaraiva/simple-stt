@@ -21,7 +21,8 @@ ui:
   auto_hide_delay: 3.0   # Seconds to auto-hide after completion (0 = no auto-hide)
 
 llm:
-  provider: openai  # openai or anthropic
+  enabled: true             # Enable/disable LLM refinement (use raw transcription when false)
+  provider: openai          # openai or anthropic
   model: gpt-3.5-turbo
   max_tokens: 500
   default_profile: general  # default profile to use

@@ -59,7 +59,7 @@ def tune_threshold():
         sys.exit(1)
 
 
-def run_stt(profile=None):
+def run_stt(profile=None, no_llm=False):
     """Run the speech-to-text process"""
     ui_manager = None
     try:
@@ -138,21 +138,31 @@ def run_stt(profile=None):
 
             logger.info(f"Transcribed text: {text}")
 
-            # Refine text with LLM
-            if profile:
-                logger.info(f"Refining text with LLM using profile: {profile}")
-                print(f"🔄 Refining text using '{profile}' profile...")
-                ui_manager.set_status(f"🔄 Refining ({profile})...", "#00aaff")
+            # Check if LLM refinement is enabled
+            llm_enabled = config.get("llm.enabled", True) and not no_llm
+            
+            if llm_enabled:
+                # Refine text with LLM
+                if profile:
+                    logger.info(f"Refining text with LLM using profile: {profile}")
+                    print(f"🔄 Refining text using '{profile}' profile...")
+                    ui_manager.set_status(f"🔄 Refining ({profile})...", "#00aaff")
+                else:
+                    logger.info("Refining text with LLM using default profile")
+                    print("🔄 Refining text...")
+                    ui_manager.set_status("🔄 Refining text...", "#00aaff")
+
+                refined_text = llm_refiner.refine_text(text, profile)
+                if not refined_text:
+                    refined_text = text
+
+                logger.info(f"Refined text: {refined_text}")
             else:
-                logger.info("Refining text with LLM using default profile")
-                print("🔄 Refining text...")
-                ui_manager.set_status("🔄 Refining text...", "#00aaff")
-
-            refined_text = llm_refiner.refine_text(text, profile)
-            if not refined_text:
+                # Skip LLM refinement, use raw transcription
+                logger.info("LLM refinement disabled, using raw transcription")
+                print("⚡ Using raw transcription (LLM disabled)")
+                ui_manager.set_status("⚡ Raw transcription", "#00aaff")
                 refined_text = text
-
-            logger.info(f"Refined text: {refined_text}")
 
             # Handle clipboard/paste
             if config.get("clipboard.auto_paste", False):
@@ -237,6 +247,9 @@ def main():
     parser.add_argument(
         "--list-profiles", action="store_true", help="List all available LLM profiles"
     )
+    parser.add_argument(
+        "--no-llm", action="store_true", help="Disable LLM refinement and use raw transcription"
+    )
 
     args = parser.parse_args()
 
@@ -248,7 +261,7 @@ def main():
     elif args.tune:
         tune_threshold()
     else:
-        run_stt(args.profile)
+        run_stt(args.profile, no_llm=args.no_llm)
 
 
 if __name__ == "__main__":
