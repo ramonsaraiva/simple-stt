@@ -1,33 +1,21 @@
 audio:
   sample_rate: 16000
   channels: 1
-  chunk_size: 2048  # Increased buffer size to prevent overflow
+  chunk_size: 2048
   format: int16
-  silence_threshold: 15
+  silence_threshold: 20
   silence_duration: 2.0
   max_recording_time: 120.0
-
-whisper:
-  model: large
-  language: en
-  device: cuda  # cuda, cpu, or auto
-  compute_type: float16  # float16, int8, or float32
-  load_timeout: 60  # seconds to wait for model loading
-
-ui:
-  enabled: true          # Enable/disable visual overlay
-  position_x: 50         # Overlay X position on screen
-  position_y: 50         # Overlay Y position on screen  
-  auto_hide_delay: 3.0   # Seconds to auto-hide after completion (0 = no auto-hide)
-
+clipboard:
+  auto_paste: false
+  paste_delay: 0.1
 llm:
-  enabled: true             # Enable/disable LLM refinement (use raw transcription when false)
-  provider: openai          # openai or anthropic
+  enabled: true
+  provider: openai
   model: gpt-3.5-turbo
   max_tokens: 500
-  default_profile: general  # default profile to use
+  default_profile: general
   
-  # Different prompt profiles for different contexts
   profiles:
     general:
       name: "General Text Cleanup"
@@ -43,10 +31,18 @@ llm:
         Convert this speech into a clear, actionable todo item or task description.
         Make it specific, concise, and action-oriented.
         Use bullet points (markdown format) if multiple tasks are mentioned:
+ui:
+  enabled: true
+  position_x: 50
+  position_y: 50
+  auto_hide_delay: 3.0
 
-clipboard:
-  auto_paste: false
-  paste_delay: 0.1
+whisper:
+  model: turbo
+  language: en
+  device: cuda
+  compute_type: float16
+  load_timeout: 60
 
 # API keys (can be overridden with environment variables)
 # OPENAI_API_KEY and ANTHROPIC_API_KEY

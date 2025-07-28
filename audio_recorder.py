@@ -32,7 +32,7 @@ class AudioRecorder:
         self.temp_file = None
         self.silence_start_time = None
 
-    def record_until_silence(self) -> str | None:
+    def record_until_silence(self, voice_detected_callback=None) -> str | None:
         """Record audio until silence is detected"""
         self.frames = []
         self.silence_start_time = None
@@ -48,39 +48,62 @@ class AudioRecorder:
                 frames_per_buffer=self.config.get("audio.chunk_size", 1024),
             )
 
-            logger.info("Recording started, will stop after silence")
-            print("🎤 Recording started... (speak now, will stop after silence)")
+            logger.info("Recording started, waiting for voice activity")
+            print("🎤 Waiting for voice... (start speaking to begin recording)")
 
             silence_threshold = self.config.get("audio.silence_threshold", 500)
+            # For voice detection, use a higher threshold to avoid false positives from background noise
+            voice_threshold = max(
+                silence_threshold * 2.0, 50
+            )  # At least 2x silence threshold, minimum 50
             silence_duration = self.config.get("audio.silence_duration", 2.0)
             max_recording_time = self.config.get("audio.max_recording_time", 30.0)
 
             start_time = time.time()
+            voice_detected = False
+            voice_start_time = None
 
             while True:
                 try:
                     data = stream.read(
-                        self.config.get("audio.chunk_size", 1024), 
-                        exception_on_overflow=False  # Prevent overflow exceptions
+                        self.config.get("audio.chunk_size", 1024),
+                        exception_on_overflow=False,  # Prevent overflow exceptions
                     )
                     self.frames.append(data)
                 except Exception as e:
                     logger.warning(f"Audio read warning: {e}")
                     continue
 
-                # Check for silence
+                # Calculate volume for this chunk
                 audio_data = np.frombuffer(data, dtype=np.int16)
                 volume = np.sqrt(np.mean(audio_data**2))
 
-                if volume < silence_threshold:
-                    if self.silence_start_time is None:
-                        self.silence_start_time = time.time()
-                    elif time.time() - self.silence_start_time > silence_duration:
-                        logger.info("Silence detected, stopping recording")
-                        print("🔇 Silence detected, stopping recording...")
-                        break
+                if not voice_detected:
+                    # Phase 1: Waiting for voice activity
+                    if volume >= voice_threshold:
+                        voice_detected = True
+                        voice_start_time = time.time()
+                        logger.info(
+                            "Voice activity detected, starting silence detection"
+                        )
+                        print(
+                            "🗣️ Voice detected! Recording... (will stop after silence)"
+                        )
+
+                        # Notify UI that voice was detected
+                        if voice_detected_callback:
+                            voice_detected_callback()
                 else:
-                    self.silence_start_time = None
+                    # Phase 2: Recording with silence detection
+                    if volume < silence_threshold:
+                        if self.silence_start_time is None:
+                            self.silence_start_time = time.time()
+                        elif time.time() - self.silence_start_time > silence_duration:
+                            logger.info("Silence detected, stopping recording")
+                            print("🔇 Silence detected, stopping recording...")
+                            break
+                    else:
+                        self.silence_start_time = None
 
                 # Safety timeout
                 if time.time() - start_time > max_recording_time:

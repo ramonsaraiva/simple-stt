@@ -101,7 +101,9 @@ def run_stt(profile=None, no_llm=False):
         threading.Thread(target=check_model_loading, daemon=True).start()
 
         # Record until silence (happens in parallel with model loading)
-        audio_file = audio_recorder.record_until_silence()
+        audio_file = audio_recorder.record_until_silence(
+            voice_detected_callback=ui_manager.voice_detected
+        )
 
         # Update UI - recording stopped
         ui_manager.stop_recording()

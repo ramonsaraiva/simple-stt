@@ -24,6 +24,7 @@ class STTOverlay:
         self.labels = {}
         self.start_time = None
         self.is_recording = False
+        self.is_waiting_for_voice = False
         self.model_ready = False
         self.current_profile = "general"
         self._mainloop_running = False
@@ -129,6 +130,7 @@ class STTOverlay:
             return
 
         self.is_recording = True
+        self.is_waiting_for_voice = True  # Start in waiting for voice mode
         self.start_time = datetime.now()
         self.current_profile = profile
 
@@ -147,12 +149,23 @@ class STTOverlay:
 
         logger.info("Recording started - UI updated")
 
+    def voice_detected(self):
+        """Signal that voice activity has been detected"""
+        if not self.enabled:
+            return
+
+        self.is_waiting_for_voice = False
+        self._schedule_update()
+
+        logger.debug("Voice detected - UI updated")
+
     def stop_recording(self):
         """Signal that recording has stopped"""
         if not self.enabled:
             return
 
         self.is_recording = False
+        self.is_waiting_for_voice = False
         self._schedule_update()
 
         # Auto-hide after delay
@@ -199,7 +212,10 @@ class STTOverlay:
         try:
             # Update status
             if self.is_recording:
-                self.labels["status"].config(text="🎤 Recording", fg="#ff4444")
+                if self.is_waiting_for_voice:
+                    self.labels["status"].config(text="⏳ Waiting for voice...", fg="#ffaa00")
+                else:
+                    self.labels["status"].config(text="🎤 Recording", fg="#ff4444")
             else:
                 self.labels["status"].config(text="⏹️ Processing", fg="#ffaa00")
 
@@ -333,6 +349,11 @@ class UIManager:
         """Signal recording start"""
         if self.enabled and self.overlay:
             self.overlay.start_recording(profile)
+
+    def voice_detected(self):
+        """Signal voice activity detected"""
+        if self.enabled and self.overlay:
+            self.overlay.voice_detected()
 
     def stop_recording(self):
         """Signal recording stop"""
