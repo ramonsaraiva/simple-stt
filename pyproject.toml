@@ -11,13 +11,16 @@ authors = [
 ]
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.12"
+requires-python = ">=3.9"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10", 
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Multimedia :: Sound/Audio :: Speech",
     "Topic :: Office/Business",
@@ -78,8 +81,8 @@ line-length = 88
 # Allow unused variables when underscore-prefixed.
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
-# Assume Python 3.12+.
-target-version = "py312"
+# Assume Python 3.9+.  
+target-version = "py39"
 
 [tool.ruff.mccabe]
 # Unlike Flake8, default to a complexity level of 10.
@@ -94,7 +97,7 @@ known-first-party = ["stt"]
 
 [tool.black]
 line-length = 88
-target-version = ['py312']
+target-version = ['py39']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -111,7 +114,7 @@ extend-exclude = '''
 '''
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false

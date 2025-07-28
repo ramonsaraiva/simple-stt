@@ -1,51 +1,62 @@
+api_keys:
+  anthropic_api_key: ''
+  openai_api_key: ''
 audio:
-  sample_rate: 16000
   channels: 1
   chunk_size: 2048
   format: int16
-  silence_threshold: 20
-  silence_duration: 2.0
   max_recording_time: 120.0
+  sample_rate: 16000
+  silence_duration: 2.0
+  silence_threshold: !!python/object/apply:numpy._core.multiarray.scalar
+  - !!python/object/apply:numpy.dtype
+    args:
+    - f8
+    - false
+    - true
+    state: !!python/tuple
+    - 3
+    - <
+    - null
+    - null
+    - null
+    - -1
+    - -1
+    - 0
+  - !!binary |
+    I+KTcPDQLEA=
 clipboard:
   auto_paste: false
   paste_delay: 0.1
 llm:
-  enabled: true
-  provider: openai
-  model: gpt-3.5-turbo
-  max_tokens: 500
   default_profile: general
-  
+  enabled: true
+  max_tokens: 500
+  model: gpt-3.5-turbo
   profiles:
     general:
-      name: "General Text Cleanup"
-      prompt: >
-        Please clean up and format this transcribed text, 
-        fixing any grammar issues and making it more readable.
-        It is extremely important to maintain the original meaning
-        and not add any additional information:
-    
+      name: General Text Cleanup
+      prompt: 'Please clean up and format this transcribed text,  fixing any grammar
+        issues and making it more readable. It is extremely important to maintain
+        the original meaning and not add any additional information:
+
+        '
     todo:
-      name: "Todo/Task"
-      prompt: >
-        Convert this speech into a clear, actionable todo item or task description.
-        Make it specific, concise, and action-oriented.
-        Use bullet points (markdown format) if multiple tasks are mentioned:
+      name: Todo/Task
+      prompt: 'Convert this speech into a clear, actionable todo item or task description.
+        Make it specific, concise, and action-oriented. Use bullet points (markdown
+        format) if multiple tasks are mentioned:
+
+        '
+  provider: openai
 ui:
+  auto_hide_delay: 3.0
   enabled: true
   position_x: 50
   position_y: 50
-  auto_hide_delay: 3.0
-
 whisper:
-  model: turbo
-  language: en
-  device: cuda
   compute_type: float16
+  device: cuda
+  language: en
   load_timeout: 60
-
-# API keys (can be overridden with environment variables)
-# OPENAI_API_KEY and ANTHROPIC_API_KEY
-api_keys:
-  openai_api_key: null
-  anthropic_api_key: null
+  model: turbo
