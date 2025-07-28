@@ -2,147 +2,272 @@
 
 > **Disclaimer**: This codebase was fully built using AI language models.
 
-A Python-based speech-to-text system that integrates with Hyprland. Trigger recording with a keybinding, speak your message, and the system will automatically transcribe your speech, refine it with an LLM, and copy it to your clipboard.
+A production-ready Python speech-to-text system that integrates with Hyprland. Features voice activity detection, parallel processing, and LLM text enhancement with a clean modular architecture.
 
-## Features
+## ✨ Features
 
-- **Parallel Processing**: Model loading happens in background while you speak - no waiting!
-- **Silence Detection**: Automatically stops recording when you stop speaking
-- **High-Quality STT**: Uses OpenAI Whisper for accurate speech recognition with GPU acceleration
-- **AI Text Refinement**: Optional text cleanup and formatting using OpenAI GPT or Anthropic Claude
-- **Clipboard Integration**: Automatically copies refined text to clipboard
-- **Auto-Paste**: Optional automatic pasting into the active window
-- **Auto-Tuning**: Built-in threshold calibration for optimal silence detection
-- **Comprehensive Logging**: Detailed logging to file and console
-- **YAML Configuration**: Easy-to-edit configuration format
+- **🎙️ Voice Activity Detection**: Waits for you to start speaking before beginning silence timeout
+- **⚡ Parallel Processing**: Model loading happens in background while you speak - no waiting!
+- **🤖 High-Quality STT**: Uses OpenAI Whisper for accurate speech recognition with GPU acceleration  
+- **✨ AI Text Refinement**: Optional text cleanup and formatting using OpenAI GPT or Anthropic Claude
+- **📋 Clipboard Integration**: Automatically copies refined text to clipboard or auto-pastes
+- **🎯 Auto-Tuning**: Built-in threshold calibration for optimal voice detection
+- **🎨 Tokyo Night UI**: Beautiful dark theme with real-time status updates
+- **📝 Comprehensive Logging**: Structured logging with different levels
+- **🔧 Flexible Configuration**: YAML config with environment variable support
+- **🏗️ Production Ready**: Modular architecture with proper error handling
 
-## Setup
+## 🚀 Quick Start
 
-1. **Install Dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   
-   # Install system dependencies
-   sudo pacman -S xdotool  # For Arch Linux
-   # or
-   sudo apt install xdotool  # For Ubuntu/Debian
-   ```
+### Installation
 
-2. **Configure API Keys**:
-   Create a `.env` file:
+**Option 1: Development/Testing**
+```bash
+# Clone and install dependencies
+git clone <your-repo>
+cd stt
+pip install -r requirements.txt
+
+# Install system dependencies
+sudo pacman -S xdotool  # Arch Linux
+# or
+sudo apt install xdotool  # Ubuntu/Debian
+```
+
+**Option 2: Production Installation**
+```bash
+# Install as proper Python package
+pip install -e .
+
+# Now use the 'stt' command anywhere
+stt --help
+```
+
+### Configuration
+
+1. **Set up API Keys** - Create a `.env` file:
    ```bash
    OPENAI_API_KEY=your-openai-key-here
    ANTHROPIC_API_KEY=your-anthropic-key-here
    ```
-   
-   Or edit `config.yaml` directly:
-   ```yaml
-   api_keys:
-     openai_api_key: "your-openai-key-here"
-     anthropic_api_key: "your-anthropic-key-here"
-   ```
 
-3. **Tune Silence Detection**:
+2. **Tune Voice Detection**:
    ```bash
+   # For development
    python main.py --tune
-   ```
-   Follow the prompts to calibrate the silence threshold for your microphone and environment.
-
-4. **Configure Hyprland**:
-   Add to your `~/.config/hypr/hyprland.conf`:
-   ```
-   # Default/General STT
-   bind = ALT SHIFT, R, exec, cd /path/to/stt && python main.py
    
-   # Context-specific shortcuts
-   bind = ALT SHIFT, S, exec, cd /path/to/stt && python main.py --profile slack
-   bind = ALT SHIFT, E, exec, cd /path/to/stt && python main.py --profile email
+   # For production install
+   stt --tune
+   ```
+   Follow the prompts to calibrate voice detection for your microphone.
+
+3. **Configure Hyprland** - Add to `~/.config/hypr/hyprland.conf`:
+   ```bash
+   # Development usage
+   bind = ALT SHIFT, R, exec, cd /path/to/stt && python main.py
    bind = ALT SHIFT, T, exec, cd /path/to/stt && python main.py --profile todo
-   bind = ALT SHIFT, O, exec, cd /path/to/stt && python main.py --profile obsidian
+   
+   # Production usage (after pip install -e .)
+   bind = ALT SHIFT, R, exec, stt
+   bind = ALT SHIFT, T, exec, stt --profile todo
    ```
 
-## Usage
+## 📖 Usage
 
 ### Basic Usage
-```bash
-python main.py
-```
-The system will **immediately** start recording while loading the Whisper model in the background. You can start speaking right away! When you stop speaking (silence detected), the system waits for model loading to complete (if needed) and then transcribes your audio.
 
-### Using Different Profiles
+**Development:**
 ```bash
-python main.py --profile slack       # Format for Slack messages
-python main.py --profile email       # Format as professional email
-python main.py --profile todo        # Create actionable todo items
-python main.py --profile obsidian    # Format as Obsidian markdown note
-python main.py --profile code_comment # Format as code documentation
-python main.py --profile meeting_notes # Structure as meeting notes
+python main.py                    # Start recording with default settings
+python main.py --profile todo     # Use 'todo' LLM profile  
+python main.py --no-llm           # Skip LLM refinement
+python main.py --verbose          # Enable debug logging
 ```
 
-### List Available Profiles
+**Production:**
 ```bash
-python main.py --list-profiles
+stt                               # Start recording
+stt --profile todo                # Use specific profile
+stt --list-profiles               # Show available profiles
+stt --tune                        # Calibrate voice detection
+stt --config /path/to/config.yaml # Use custom config
 ```
 
-### Tuning Mode
-```bash
-python main.py --tune
-```
-Calibrates the silence detection threshold for your specific setup.
+### How It Works
 
-### Verbose Logging
-```bash
-python main.py --verbose
-```
-Enables detailed debug logging.
+1. **🎤 Start**: Press your keybind → UI appears showing "Waiting for voice..."
+2. **🗣️ Speak**: Start speaking → UI changes to "Recording" with timer
+3. **🤫 Silence**: Stop speaking → After 2 seconds of silence, recording stops
+4. **⚡ Process**: Whisper transcribes → LLM enhances (optional) → Copies to clipboard
+5. **✅ Done**: "Copied to clipboard!" → UI auto-hides
 
-## Configuration
+### Available Profiles
 
-Edit `config.yaml` to customize:
+Run `stt --list-profiles` to see all available LLM profiles:
+
+- **general**: General text cleanup and grammar correction
+- **todo**: Convert speech to actionable todo items
+- **email**: Format as professional email
+- **slack**: Format for Slack/chat messages
+- **obsidian**: Format as Obsidian markdown notes
+- **code_comment**: Format as code documentation
+
+## ⚙️ Configuration
+
+The system looks for configuration in this order:
+1. `config.yaml` (current directory)
+2. `~/.stt/config.yaml` (user home) 
+3. `/etc/stt/config.yaml` (system-wide)
+
+### Key Settings
 
 ```yaml
 audio:
-  silence_threshold: 30        # Volume threshold for silence detection
-  silence_duration: 2.0        # Seconds of silence before stopping
-  max_recording_time: 30.0     # Maximum recording time (safety)
+  silence_threshold: 20           # Voice detection threshold (tune with --tune)
+  silence_duration: 2.0           # Seconds of silence before stopping
+  max_recording_time: 120.0       # Maximum recording time (safety)
 
 whisper:
-  model: base                  # tiny, base, small, medium, large
-  language: auto               # Language code or 'auto'
-  device: cuda                 # cuda, cpu, or auto
-  compute_type: float16        # float16, int8, or float32
-  load_timeout: 60             # seconds to wait for model loading
+  model: turbo                    # tiny, base, small, medium, large, turbo
+  language: en                    # Language code or 'auto'
+  device: cuda                    # cuda, cpu, or auto
+  compute_type: float16           # float16, int8, or float32
 
 llm:
-  provider: openai             # openai or anthropic
-  model: gpt-3.5-turbo        # Model to use for text refinement
-  
+  enabled: true                   # Enable/disable LLM refinement
+  provider: openai                # openai or anthropic  
+  model: gpt-3.5-turbo           # Model for text enhancement
+  default_profile: general        # Default enhancement profile
+
+ui:
+  enabled: true                   # Show UI overlay
+  auto_hide_delay: 3.0           # Seconds before auto-hide
+
 clipboard:
-  auto_paste: false            # Automatically paste to active window
+  auto_paste: false               # Auto-paste to active window
+  paste_delay: 0.1               # Delay before pasting
 ```
 
-## Logging
+### Environment Variables
 
-The system logs to both console and `stt.log` file:
-- INFO: General operation messages
-- DEBUG: Detailed debugging information (use `--verbose`)
-- ERROR: Error conditions
-- WARNING: Important notices
+Load from `.env` file or set directly:
+```bash
+OPENAI_API_KEY=your_key_here
+ANTHROPIC_API_KEY=your_key_here
+```
 
-## Troubleshooting
+## 🏗️ Architecture
 
-- **Audio Issues**: Make sure your microphone is working and accessible
-- **Silence Detection**: Run `python main.py --tune` to recalibrate
-- **API Errors**: Verify your API keys are correct and have sufficient credits
-- **Auto-paste Issues**: Ensure `xdotool` is installed and accessible
+The refactored system uses a clean modular architecture:
 
-## File Structure
+```
+src/stt/
+├── audio/          # Voice recording and detection
+├── speech/         # Transcription and enhancement  
+├── ui/             # Tokyo Night themed overlay
+├── config/         # Configuration management
+├── services/       # Core business logic
+└── cli.py          # Command-line interface
+```
 
-- `main.py`: Main entry point with argument parsing
-- `config.py`: YAML configuration management
-- `audio_recorder.py`: Microphone recording with silence detection
-- `stt_processor.py`: Whisper integration
-- `llm_refiner.py`: LLM text refinement
-- `clipboard_manager.py`: Clipboard and auto-paste features
-- `config.yaml`: User configuration file
-- `stt.log`: Application log file
+### Key Components
+
+- **🎙️ AudioRecorder**: Voice activity detection and recording
+- **🤖 SpeechTranscriber**: Whisper integration with async loading
+- **✨ TextEnhancer**: LLM text refinement with multiple providers
+- **🎨 UIManager**: Tokyo Night themed status overlay
+- **⚙️ ConfigManager**: Flexible configuration with validation
+- **🎯 STTOrchestrator**: Main service coordinator
+
+## 🔧 Development
+
+### Adding New LLM Profiles
+
+Edit `config.yaml`:
+```yaml
+llm:
+  profiles:
+    my_profile:
+      name: "My Custom Profile"
+      prompt: "Your custom prompt here..."
+```
+
+### Adding New LLM Providers
+
+Extend `TextEnhancer` in `src/stt/speech/enhancer.py`:
+```python
+def _call_my_provider(self, prompt: str, text: str) -> Optional[str]:
+    # Implementation here
+    pass
+```
+
+## 🐛 Troubleshooting
+
+### Audio Issues
+- **No recording**: Check microphone permissions and audio drivers
+- **False voice detection**: Run `stt --tune` to recalibrate threshold
+- **Always waiting for voice**: Threshold too high, run `--tune` or lower `silence_threshold`
+
+### API Issues  
+- **API key errors**: Check `.env` file exists and has correct keys
+- **Rate limiting**: Check API quotas and billing
+- **Provider errors**: Try switching between `openai` and `anthropic`
+
+### System Issues
+- **UI not showing**: Install tkinter: `sudo apt install python3-tk`
+- **Auto-paste not working**: Install xdotool: `sudo apt install xdotool`
+- **Import errors**: Make sure you've installed dependencies: `pip install -r requirements.txt`
+
+### Debugging
+```bash
+# Enable verbose logging
+stt --verbose
+
+# Check configuration
+stt --list-profiles
+
+# Test API connectivity (will attempt to enhance sample text)
+echo "test text" | stt --profile general --verbose
+```
+
+## 📝 Logging
+
+Logs are written to both console and `stt.log`:
+- **INFO**: General operation status
+- **DEBUG**: Detailed debugging (use `--verbose`)  
+- **ERROR**: Error conditions with context
+- **WARNING**: Important notices
+
+## 🔄 Migration from Old Version
+
+The system maintains backward compatibility:
+
+```bash
+# Old way (still works, shows deprecation warning)
+python main.py --profile todo
+
+# New way (recommended)
+stt --profile todo
+```
+
+For scripts using the old import structure, update:
+```python
+# Old
+from audio_recorder import AudioRecorder
+
+# New  
+from stt.audio import AudioRecorder
+# or
+from stt import STTOrchestrator
+```
+
+## 🤝 Contributing
+
+This is a production-ready system with proper:
+- ✅ Modular architecture
+- ✅ Error handling and logging  
+- ✅ Type hints and documentation
+- ✅ Configuration management
+- ✅ Backward compatibility
+
+Feel free to extend with new providers, profiles, or features!
