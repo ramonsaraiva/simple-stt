@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import yaml
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +83,9 @@ class ConfigManager:
         Args:
             config_path: Path to configuration file. If None, uses default locations.
         """
+        # Load environment variables from .env file first
+        self._load_dotenv()
+        
         self.config_path = self._resolve_config_path(config_path)
         self._config = self.DEFAULT_CONFIG.copy()
         self.load()
@@ -197,15 +201,35 @@ class ConfigManager:
         
         return result
     
+    def _load_dotenv(self) -> None:
+        """Load environment variables from .env file."""
+        # Look for .env file in these locations
+        env_candidates = [
+            Path(".env"),
+            Path.cwd() / ".env", 
+            Path.home() / ".stt" / ".env",
+        ]
+        
+        for env_path in env_candidates:
+            if env_path.exists():
+                logger.info(f"Loading environment variables from {env_path}")
+                load_dotenv(env_path)
+                break
+        else:
+            # Also try to load from current directory without specific path
+            load_dotenv()
+    
     def _load_env_vars(self) -> None:
         """Load API keys from environment variables."""
         openai_key = os.getenv("OPENAI_API_KEY")
         if openai_key:
             self.set("api_keys.openai_api_key", openai_key)
+            logger.debug("Loaded OpenAI API key from environment")
         
         anthropic_key = os.getenv("ANTHROPIC_API_KEY")
         if anthropic_key:
-            self.set("api_keys.anthropic_api_key", anthropic_key)
+            self.set("api_keys.anthropic_api_key", anthropic_key) 
+            logger.debug("Loaded Anthropic API key from environment")
     
     @property
     def config(self) -> Dict[str, Any]:

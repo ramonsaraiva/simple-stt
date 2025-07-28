@@ -89,6 +89,7 @@ class TextEnhancer:
             
             api_key = self.config.get("api_keys.openai_api_key")
             if not api_key:
+                logger.error("OpenAI API key not found. Check .env file or environment variables.")
                 raise EnhancementError("OpenAI API key not configured")
             
             client = openai.OpenAI(api_key=api_key)
@@ -122,6 +123,7 @@ class TextEnhancer:
             
             api_key = self.config.get("api_keys.anthropic_api_key")
             if not api_key:
+                logger.error("Anthropic API key not found. Check .env file or environment variables.")
                 raise EnhancementError("Anthropic API key not configured")
             
             client = anthropic.Anthropic(api_key=api_key)

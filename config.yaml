@@ -47,5 +47,5 @@ whisper:
 # API keys (can be overridden with environment variables)
 # OPENAI_API_KEY and ANTHROPIC_API_KEY
 api_keys:
-  openai_api_key: ""
-  anthropic_api_key: ""
+  openai_api_key: null
+  anthropic_api_key: null
