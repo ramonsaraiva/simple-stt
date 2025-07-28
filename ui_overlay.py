@@ -54,17 +54,28 @@ class STTOverlay:
             self.root.attributes("-alpha", 0.9)  # Slight transparency
             self.root.resizable(False, False)
 
-            # Position window
-            self.root.geometry(f"+{self.position_x}+{self.position_y}")
-
-            # Configure style
+            # Create widgets first to get accurate window size
             self.root.configure(bg="#2b2b2b")
-
-            # Create widgets
             self._create_widgets()
+
+            # Update geometry to calculate size
+            self.root.update_idletasks()
+
+            # Calculate center position
+            screen_width = self.root.winfo_screenwidth()
+            screen_height = self.root.winfo_screenheight()
+            window_width = self.root.winfo_reqwidth()
+            window_height = self.root.winfo_reqheight()
+            
+            center_x = (screen_width - window_width) // 2
+            center_y = (screen_height - window_height) // 2
+
+            # Position window at center
+            self.root.geometry(f"{window_width}x{window_height}+{center_x}+{center_y}")
+
             self._update_display()
 
-            logger.info("STT overlay created")
+            logger.info("STT overlay created and centered")
 
         except Exception as e:
             logger.error(f"Failed to create overlay: {e}")
