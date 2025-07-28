@@ -32,6 +32,13 @@ llm:
         format) if multiple tasks are mentioned:
 
         '
+    slack:
+      name: Slack Message
+      prompt: 'Convert this speech into a personalized Slack message.
+        I do not use capital letters to start phrases etc, so re-write
+        the message if necessary with clear english:
+
+        '
   provider: openai
 ui:
   auto_hide_delay: 3.0
