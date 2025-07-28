@@ -1,9 +1,9 @@
 audio:
   sample_rate: 16000
   channels: 1
-  chunk_size: 1024
+  chunk_size: 2048  # Increased buffer size to prevent overflow
   format: int16
-  silence_threshold: 13
+  silence_threshold: 15
   silence_duration: 2.0
   max_recording_time: 120.0
 
@@ -13,6 +13,12 @@ whisper:
   device: cuda  # cuda, cpu, or auto
   compute_type: float16  # float16, int8, or float32
   load_timeout: 60  # seconds to wait for model loading
+
+ui:
+  enabled: true          # Enable/disable visual overlay
+  position_x: 50         # Overlay X position on screen
+  position_y: 50         # Overlay Y position on screen  
+  auto_hide_delay: 3.0   # Seconds to auto-hide after completion (0 = no auto-hide)
 
 llm:
   provider: openai  # openai or anthropic
@@ -26,43 +32,16 @@ llm:
       name: "General Text Cleanup"
       prompt: >
         Please clean up and format this transcribed text, 
-        fixing any grammar issues and making it more readable 
-        while preserving the original meaning:
-    
-    slack:
-      name: "Slack Message"
-      prompt: >
-        Convert this transcribed speech into a professional but friendly Slack message.
-        Fix grammar, make it concise, and ensure it's appropriate for workplace communication.
-        Use a casual but professional tone:
-    
-    email:
-      name: "Email"
-      prompt: >
-        Transform this transcribed speech into a well-structured email.
-        Add proper grammar, professional tone, and clear structure.
-        Make it concise but complete:
+        fixing any grammar issues and making it more readable.
+        It is extremely important to maintain the original meaning
+        and not add any additional information:
     
     todo:
       name: "Todo/Task"
       prompt: >
         Convert this speech into a clear, actionable todo item or task description.
         Make it specific, concise, and action-oriented.
-        Use bullet points if multiple tasks are mentioned:
-    
-    obsidian:
-      name: "Obsidian Note"
-      prompt: >
-        Format this transcribed text as a clean Obsidian markdown note.
-        Fix grammar, add appropriate markdown formatting, and structure it clearly.
-        Use ## headings and bullet points where appropriate:
-        
-    meeting_notes:
-      name: "Meeting Notes"
-      prompt: >
-        Structure this transcribed speech as organized meeting notes.
-        Use bullet points, identify action items, and make it scannable.
-        Highlight important decisions and next steps:
+        Use bullet points (markdown format) if multiple tasks are mentioned:
 
 clipboard:
   auto_paste: false

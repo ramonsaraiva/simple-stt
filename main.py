@@ -9,6 +9,7 @@ from clipboard_manager import ClipboardManager
 from config import Config
 from llm_refiner import LLMRefiner
 from stt_processor import STTProcessor
+from ui_overlay import UIManager
 
 # Configure logging
 logging.basicConfig(
@@ -48,6 +49,7 @@ def tune_threshold():
 
 def run_stt(profile=None):
     """Run the speech-to-text process"""
+    ui_manager = None
     try:
         logger.info("Starting STT process")
 
@@ -58,32 +60,65 @@ def run_stt(profile=None):
         llm_refiner = LLMRefiner(config)
         clipboard_manager = ClipboardManager(config)
 
+        # Initialize and start UI
+        ui_manager = UIManager(config)
+        ui_manager.start_ui()
+
         # Start loading the Whisper model in the background
         print("🚀 Starting model loading and recording...")
         stt_processor.start_loading_async()
 
+        # Start recording and update UI
+        ui_manager.start_recording(profile or "general")
+
+        # Start a background thread to check model loading status
+        def check_model_loading():
+            import time
+
+            while ui_manager.overlay and ui_manager.overlay.is_recording:
+                if stt_processor._model_loaded.is_set() and stt_processor.model:
+                    ui_manager.set_model_ready(True)
+                    break
+                time.sleep(1.0)  # Check less frequently to reduce interference
+
+        import threading
+
+        threading.Thread(target=check_model_loading, daemon=True).start()
+
         # Record until silence (happens in parallel with model loading)
         audio_file = audio_recorder.record_until_silence()
+
+        # Update UI - recording stopped
+        ui_manager.stop_recording()
+
         if not audio_file:
             logger.warning("No audio recorded")
             print("❌ No audio recorded")
+            ui_manager.set_status("❌ No audio recorded", "#ff4444")
             return
 
         try:
             # Wait for model to finish loading (if it hasn't already)
             print("⏳ Ensuring model is ready...")
+            ui_manager.set_status("⏳ Waiting for model...", "#ffaa00")
             timeout = config.get("whisper.load_timeout", 60)
             if not stt_processor.wait_for_model(timeout):
                 print("❌ Failed to load Whisper model")
+                ui_manager.set_status("❌ Model loading failed", "#ff4444")
                 return
+
+            # Update UI - model is ready
+            ui_manager.set_model_ready(True)
 
             # Transcribe audio
             logger.info("Transcribing audio")
             print("🔄 Transcribing audio...")
+            ui_manager.set_status("🔄 Transcribing audio...", "#00aaff")
             text = stt_processor.transcribe(audio_file)
             if not text:
                 logger.warning("No speech detected in audio")
                 print("❌ No speech detected")
+                ui_manager.set_status("❌ No speech detected", "#ff4444")
                 return
 
             logger.info(f"Transcribed text: {text}")
@@ -92,9 +127,11 @@ def run_stt(profile=None):
             if profile:
                 logger.info(f"Refining text with LLM using profile: {profile}")
                 print(f"🔄 Refining text using '{profile}' profile...")
+                ui_manager.set_status(f"🔄 Refining ({profile})...", "#00aaff")
             else:
                 logger.info("Refining text with LLM using default profile")
                 print("🔄 Refining text...")
+                ui_manager.set_status("🔄 Refining text...", "#00aaff")
 
             refined_text = llm_refiner.refine_text(text, profile)
             if not refined_text:
@@ -106,12 +143,24 @@ def run_stt(profile=None):
             if config.get("clipboard.auto_paste", False):
                 clipboard_manager.paste_text(refined_text)
                 logger.info("Text auto-pasted to active window")
+                ui_manager.set_status("✅ Auto-pasted!", "#00ff00")
             else:
                 clipboard_manager.copy_to_clipboard(refined_text)
                 logger.info("Text copied to clipboard")
+                ui_manager.set_status("✅ Copied to clipboard!", "#00ff00")
 
             print("✅ Processing complete!")
             logger.info("STT process completed successfully")
+
+            # Wait a bit for UI to auto-hide if enabled
+            if (
+                ui_manager.enabled
+                and ui_manager.overlay
+                and ui_manager.overlay.auto_hide_delay > 0
+            ):
+                import time
+
+                time.sleep(min(ui_manager.overlay.auto_hide_delay + 0.5, 5.0))
 
         except Exception as e:
             logger.error(f"Error processing audio: {e}")
@@ -123,7 +172,13 @@ def run_stt(profile=None):
     except Exception as e:
         logger.error(f"Failed to start STT: {e}")
         print(f"❌ Failed to start STT: {e}")
+        if ui_manager:
+            ui_manager.set_status("❌ System error", "#ff4444")
         sys.exit(1)
+    finally:
+        # Cleanup UI resources
+        if ui_manager:
+            ui_manager.cleanup()
 
 
 def list_profiles():

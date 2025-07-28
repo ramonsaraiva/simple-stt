@@ -58,8 +58,15 @@ class AudioRecorder:
             start_time = time.time()
 
             while True:
-                data = stream.read(self.config.get("audio.chunk_size", 1024))
-                self.frames.append(data)
+                try:
+                    data = stream.read(
+                        self.config.get("audio.chunk_size", 1024), 
+                        exception_on_overflow=False  # Prevent overflow exceptions
+                    )
+                    self.frames.append(data)
+                except Exception as e:
+                    logger.warning(f"Audio read warning: {e}")
+                    continue
 
                 # Check for silence
                 audio_data = np.frombuffer(data, dtype=np.int16)
