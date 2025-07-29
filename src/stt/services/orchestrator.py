@@ -90,6 +90,13 @@ class STTOrchestrator:
 
             # Initialize and start UI
             self.ui_manager.start_ui()
+            
+            # Set up device name display
+            device_name = self.audio_recorder.get_selected_device_name()
+            self.ui_manager.set_device_name(device_name)
+            
+            # Set up volume monitoring callback
+            self.audio_recorder.set_volume_callback(self.ui_manager.set_volume_level)
 
             # Start loading the Whisper model in the background
             print("🚀 Starting model loading and recording...")
@@ -266,6 +273,48 @@ class STTOrchestrator:
             logger.error(f"Failed to list profiles: {e}")
             print(f"❌ Failed to list profiles: {e}")
             raise STTError(f"Failed to list profiles: {e}") from e
+
+    def list_audio_devices(self) -> None:
+        """List all available audio input devices."""
+        try:
+            devices = self.audio_recorder.list_input_devices()
+            current_device_index = self.config.get("audio.device_index", None)
+            current_device_name = self.audio_recorder.get_selected_device_name()
+
+            print("🎤 Available audio input devices:")
+            print()
+            
+            for device in devices:
+                index = device['index']
+                name = device['name']
+                channels = device['channels']
+                sample_rate = int(device['default_sample_rate'])
+                
+                # Mark current device
+                marker = "👈 CURRENT" if index == current_device_index else ""
+                if current_device_index is None and index == 0:
+                    # If no device is configured, assume index 0 is default
+                    try:
+                        default_device = self.audio_recorder.audio.get_default_input_device_info()
+                        if default_device['index'] == index:
+                            marker = "👈 DEFAULT"
+                    except:
+                        pass
+                
+                print(f"  [{index:2d}] {name}")
+                print(f"       Channels: {channels}, Sample Rate: {sample_rate} Hz {marker}")
+                print()
+
+            print(f"🎯 Currently selected: {current_device_name}")
+            print()
+            print("💡 To change device, add to your config.yaml:")
+            print("   audio:")
+            print("     device_index: <index_number>")
+
+        except Exception as e:
+            logger.error(f"Failed to list audio devices: {e}")
+            print(f"❌ Failed to list audio devices: {e}")
+            raise STTError(f"Failed to list audio devices: {e}") from e
 
     def cleanup(self) -> None:
         """Clean up resources."""

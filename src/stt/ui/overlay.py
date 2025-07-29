@@ -56,6 +56,8 @@ class STTOverlay:
         self.is_waiting_for_voice = False
         self.model_ready = False
         self.current_profile = "general"
+        self.current_volume = 0.0
+        self.device_name = "Default"
         self._mainloop_running = False
 
         # UI update thread control
@@ -167,7 +169,29 @@ class STTOverlay:
             fg=THEME["accent_blue"],
             font=("Arial", 9),
         )
-        self.labels["profile"].pack(anchor="w", pady=(0, 0))
+        self.labels["profile"].pack(anchor="w", pady=(0, 2))
+
+        # Device line
+        self.labels["device"] = tk.Label(
+            main_frame,
+            text="🎧 Default",
+            bg=THEME["bg_primary"],
+            fg=THEME["text_secondary"],
+            font=("Arial", 8),
+            wraplength=400,
+            justify="left",
+        )
+        self.labels["device"].pack(anchor="w", fill="x", pady=(0, 2))
+
+        # Volume line
+        self.labels["volume"] = tk.Label(
+            main_frame,
+            text="🔊 Level: 0",
+            bg=THEME["bg_primary"],
+            fg=THEME["text_secondary"],
+            font=("Arial", 8),
+        )
+        self.labels["volume"].pack(anchor="w", pady=(0, 0))
 
     def start_recording(self, profile: str = "general") -> None:
         """Signal that recording has started."""
@@ -225,6 +249,22 @@ class STTOverlay:
         self.model_ready = ready
         self._schedule_update()
         logger.debug(f"Model status updated: {'ready' if ready else 'loading'}")
+
+    def set_device_name(self, device_name: str) -> None:
+        """Update the device name display."""
+        if not self.enabled:
+            return
+
+        self.device_name = device_name
+        self._schedule_update()
+
+    def set_volume_level(self, volume: float) -> None:
+        """Update the volume level display."""
+        if not self.enabled:
+            return
+
+        self.current_volume = volume
+        self._schedule_update()
 
     def set_status(self, status_text: str, color: str = THEME["text_primary"]) -> None:
         """Set custom status text."""
@@ -294,6 +334,30 @@ class STTOverlay:
             # Update profile
             self.labels["profile"].config(
                 text=f"📝 {self.current_profile}", fg=THEME["accent_blue"]
+            )
+
+            # Update device
+            device_text = self.device_name
+            if len(device_text) > 35:  # Truncate long device names
+                device_text = device_text[:32] + "..."
+            self.labels["device"].config(
+                text=f"🎧 {device_text}", fg=THEME["text_secondary"]
+            )
+
+            # Update volume
+            volume_level = int(self.current_volume)
+            volume_color = THEME["text_secondary"]
+            if self.is_recording and not self.is_waiting_for_voice:
+                # Show volume level with color coding during active recording
+                if volume_level > 100:
+                    volume_color = THEME["accent_green"]
+                elif volume_level > 50:
+                    volume_color = THEME["accent_yellow"]
+                else:
+                    volume_color = THEME["accent_red"]
+            
+            self.labels["volume"].config(
+                text=f"🔊 Level: {volume_level}", fg=volume_color
             )
 
         except Exception as e:
@@ -440,6 +504,16 @@ class UIManager:
         """Set custom status."""
         if self.enabled and self.overlay:
             self.overlay.set_status(status_text, color)
+
+    def set_device_name(self, device_name: str) -> None:
+        """Set device name display."""
+        if self.enabled and self.overlay:
+            self.overlay.set_device_name(device_name)
+
+    def set_volume_level(self, volume: float) -> None:
+        """Set volume level display."""
+        if self.enabled and self.overlay:
+            self.overlay.set_volume_level(volume)
 
     def cleanup(self) -> None:
         """Clean up UI resources."""

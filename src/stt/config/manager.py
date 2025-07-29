@@ -27,6 +27,8 @@ class ConfigManager:
             "silence_threshold": 20.0,
             "silence_duration": 2.0,
             "max_recording_time": 120.0,
+            "device_index": None,  # None for default, or specific device index
+            "device_name": "Default",  # Display name for the selected device
         },
         "whisper": {
             "model": "turbo",

@@ -40,6 +40,7 @@ Examples:
   stt --no-llm                  # Skip LLM refinement
   stt --tune                    # Tune silence threshold
   stt --list-profiles           # Show available LLM profiles
+  stt --list-devices            # Show available audio input devices
   stt --config /path/config.yaml # Use custom config file
         """,
     )
@@ -62,6 +63,9 @@ Examples:
         "--list-profiles", action="store_true", help="List all available LLM profiles"
     )
     parser.add_argument(
+        "--list-devices", action="store_true", help="List all available audio input devices"
+    )
+    parser.add_argument(
         "--no-llm",
         action="store_true",
         help="Disable LLM refinement and use raw transcription",
@@ -81,6 +85,8 @@ Examples:
         # Handle different commands
         if args.list_profiles:
             orchestrator.list_profiles()
+        elif args.list_devices:
+            orchestrator.list_audio_devices()
         elif args.tune:
             orchestrator.tune_threshold()
         else:

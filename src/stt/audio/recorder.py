@@ -6,7 +6,7 @@ import tempfile
 import time
 import wave
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pyaudio
@@ -36,6 +36,8 @@ class AudioRecorder:
         self.stream = None
         self.temp_file: Optional[Path] = None
         self.silence_start_time: Optional[float] = None
+        self.current_volume: float = 0.0
+        self.volume_callback: Optional[Callable[[float], None]] = None
 
         self._initialize_audio()
 
@@ -53,6 +55,67 @@ class AudioRecorder:
             raise AudioError(
                 "Failed to initialize audio system. Check audio drivers."
             ) from e
+
+    def list_input_devices(self) -> List[Dict[str, any]]:
+        """List available input audio devices.
+        
+        Returns:
+            List of device info dictionaries
+        """
+        if not self.audio:
+            raise AudioError("Audio system not initialized")
+            
+        devices = []
+        device_count = self.audio.get_device_count()
+        
+        for i in range(device_count):
+            device_info = self.audio.get_device_info_by_index(i)
+            # Only include input devices
+            if device_info['maxInputChannels'] > 0:
+                devices.append({
+                    'index': i,
+                    'name': device_info['name'],
+                    'channels': device_info['maxInputChannels'],
+                    'default_sample_rate': device_info['defaultSampleRate']
+                })
+        
+        return devices
+    
+    def get_selected_device_name(self) -> str:
+        """Get the name of the currently selected audio device.
+        
+        Returns:
+            Name of the selected device
+        """
+        device_index = self.config.get("audio.device_index", None)
+        
+        if device_index is None:
+            # Using default device - try to get default input device info
+            try:
+                if self.audio:
+                    default_device = self.audio.get_default_input_device_info()
+                    return default_device['name']
+            except Exception:
+                pass
+            return "Default"
+        
+        # Get specific device name
+        try:
+            if self.audio:
+                device_info = self.audio.get_device_info_by_index(device_index)
+                return device_info['name']
+        except Exception:
+            pass
+        
+        return f"Device {device_index}"
+    
+    def set_volume_callback(self, callback: Callable[[float], None]) -> None:
+        """Set callback to receive volume updates during recording.
+        
+        Args:
+            callback: Function to call with volume level (0.0 to ~1000+)
+        """
+        self.volume_callback = callback
 
     def record_until_silence(
         self, voice_detected_callback: Optional[Callable[[], None]] = None
@@ -83,15 +146,21 @@ class AudioRecorder:
         )  # More conservative for voice detection
         silence_duration = self.config.get("audio.silence_duration", 2.0)
         max_recording_time = self.config.get("audio.max_recording_time", 120.0)
+        device_index = self.config.get("audio.device_index", None)
 
         try:
-            stream = self.audio.open(
-                format=audio_format,
-                channels=channels,
-                rate=sample_rate,
-                input=True,
-                frames_per_buffer=chunk_size,
-            )
+            stream_params = {
+                "format": audio_format,
+                "channels": channels,
+                "rate": sample_rate,
+                "input": True,
+                "frames_per_buffer": chunk_size,
+            }
+            
+            if device_index is not None:
+                stream_params["input_device_index"] = device_index
+                
+            stream = self.audio.open(**stream_params)
 
             logger.info("Recording started, waiting for voice activity")
             print("🎤 Waiting for voice... (start speaking to begin recording)")
@@ -110,6 +179,11 @@ class AudioRecorder:
                 # Calculate volume for this chunk
                 audio_data = np.frombuffer(data, dtype=np.int16)
                 volume = np.sqrt(np.mean(audio_data**2))
+                self.current_volume = volume
+                
+                # Call volume callback if set
+                if self.volume_callback:
+                    self.volume_callback(volume)
 
                 if not voice_detected:
                     # Phase 1: Waiting for voice activity
@@ -177,15 +251,21 @@ class AudioRecorder:
         channels = self.config.get("audio.channels", 1)
         chunk_size = self.config.get("audio.chunk_size", 1024)
         audio_format = self._get_audio_format()
+        device_index = self.config.get("audio.device_index", None)
 
         try:
-            stream = self.audio.open(
-                format=audio_format,
-                channels=channels,
-                rate=sample_rate,
-                input=True,
-                frames_per_buffer=chunk_size,
-            )
+            stream_params = {
+                "format": audio_format,
+                "channels": channels,
+                "rate": sample_rate,
+                "input": True,
+                "frames_per_buffer": chunk_size,
+            }
+            
+            if device_index is not None:
+                stream_params["input_device_index"] = device_index
+                
+            stream = self.audio.open(**stream_params)
 
             volumes = []
             speech_volumes = []
