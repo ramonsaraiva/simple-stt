@@ -38,6 +38,7 @@ class AudioRecorder:
         self.silence_start_time: Optional[float] = None
         self.current_volume: float = 0.0
         self.volume_callback: Optional[Callable[[float], None]] = None
+        self.waveform_callback: Optional[Callable[[List[float]], None]] = None
 
         self._initialize_audio()
 
@@ -116,6 +117,14 @@ class AudioRecorder:
             callback: Function to call with volume level (0.0 to ~1000+)
         """
         self.volume_callback = callback
+    
+    def set_waveform_callback(self, callback: Callable[[List[float]], None]) -> None:
+        """Set callback to receive waveform data for visualization.
+        
+        Args:
+            callback: Function to call with normalized audio samples (-1.0 to 1.0)
+        """
+        self.waveform_callback = callback
 
     def record_until_silence(
         self, voice_detected_callback: Optional[Callable[[], None]] = None
@@ -184,6 +193,15 @@ class AudioRecorder:
                 # Call volume callback if set
                 if self.volume_callback:
                     self.volume_callback(volume)
+                
+                # Call waveform callback if set (normalize to -1.0 to 1.0 range)
+                if self.waveform_callback:
+                    # Normalize int16 data to float range -1.0 to 1.0
+                    normalized_samples = audio_data.astype(np.float32) / 32768.0
+                    # Downsample for visualization (take every Nth sample for performance)
+                    downsample_factor = max(1, len(normalized_samples) // 200)  # Target ~200 points
+                    waveform_data = normalized_samples[::downsample_factor].tolist()
+                    self.waveform_callback(waveform_data)
 
                 if not voice_detected:
                     # Phase 1: Waiting for voice activity

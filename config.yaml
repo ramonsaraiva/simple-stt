@@ -8,7 +8,7 @@ audio:
   max_recording_time: 120.0
   sample_rate: 16000
   silence_duration: 2.0
-  silence_threshold: 15
+  silence_threshold: 25
 clipboard:
   auto_paste: false
   paste_delay: 0.1

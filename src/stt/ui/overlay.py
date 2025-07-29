@@ -4,8 +4,9 @@ import logging
 import os
 import threading
 import time
+from collections import deque
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Deque, Dict, List, Optional
 
 from ..config.manager import ConfigManager
 
@@ -58,6 +59,9 @@ class STTOverlay:
         self.current_profile = "general"
         self.current_volume = 0.0
         self.device_name = "Default"
+        self.waveform_buffer: Deque[float] = deque(maxlen=300)  # Store last 300 samples
+        self.canvas = None
+        self._last_waveform_update = 0.0  # Throttle waveform updates
         self._mainloop_running = False
 
         # UI update thread control
@@ -84,15 +88,15 @@ class STTOverlay:
 
             # Configure window
             self.root.attributes("-topmost", True)  # Always on top
-            self.root.attributes("-alpha", 0.95)  # Slight transparency
+            self.root.attributes("-alpha", 0.85)  # More transparency
             self.root.resizable(False, False)
 
             # Set theme
             self.root.configure(bg=THEME["bg_primary"])
             self._create_widgets()
 
-            # Set minimum window size
-            self.root.minsize(300, 120)
+            # Set minimum window size (increased for larger waveform)
+            self.root.minsize(320, 200)
 
             # Update geometry to calculate size
             self.root.update_idletasks()
@@ -100,8 +104,8 @@ class STTOverlay:
             # Calculate center position with dynamic sizing
             screen_width = self.root.winfo_screenwidth()
             screen_height = self.root.winfo_screenheight()
-            window_width = max(self.root.winfo_reqwidth(), 300)
-            window_height = max(self.root.winfo_reqheight(), 120)
+            window_width = max(self.root.winfo_reqwidth(), 320)
+            window_height = max(self.root.winfo_reqheight(), 200)
 
             center_x = (screen_width - window_width) // 2
             center_y = (screen_height - window_height) // 2
@@ -135,11 +139,11 @@ class STTOverlay:
             fg=THEME["text_primary"],
             font=("Arial", 12, "bold"),
             wraplength=400,  # Wrap text at 400 pixels
-            justify="left",
+            justify="center",
         )
-        self.labels["status"].pack(anchor="w", fill="x", pady=(0, 2))
+        self.labels["status"].pack(fill="x", pady=(0, 2))
 
-        # Timer line
+        # Timer line - centered
         self.labels["timer"] = tk.Label(
             main_frame,
             text="00:00",
@@ -147,51 +151,73 @@ class STTOverlay:
             fg=THEME["text_secondary"],
             font=("Monaco", 10),
         )
-        self.labels["timer"].pack(anchor="w", pady=(0, 2))
+        self.labels["timer"].pack(pady=(0, 8))
 
-        # Model status line - with text wrapping
-        self.labels["model"] = tk.Label(
-            main_frame,
-            text="⏳ Loading model...",
-            bg=THEME["bg_primary"],
-            fg=THEME["accent_yellow"],
-            font=("Arial", 9),
-            wraplength=400,
-            justify="left",
-        )
-        self.labels["model"].pack(anchor="w", fill="x", pady=(0, 2))
+        # Profile and model status line - combined frame
+        profile_model_frame = tk.Frame(main_frame, bg=THEME["bg_primary"])
+        profile_model_frame.pack(fill="x", pady=(0, 8))
 
-        # Profile line
+        # Profile line - left side
         self.labels["profile"] = tk.Label(
-            main_frame,
+            profile_model_frame,
             text="📝 general",
             bg=THEME["bg_primary"],
             fg=THEME["accent_blue"],
             font=("Arial", 9),
         )
-        self.labels["profile"].pack(anchor="w", pady=(0, 2))
+        self.labels["profile"].pack(side="left")
 
-        # Device line
-        self.labels["device"] = tk.Label(
-            main_frame,
-            text="🎧 Default",
+        # Model status line - right side
+        self.labels["model"] = tk.Label(
+            profile_model_frame,
+            text="⏳ Loading model...",
             bg=THEME["bg_primary"],
-            fg=THEME["text_secondary"],
-            font=("Arial", 8),
-            wraplength=400,
-            justify="left",
+            fg=THEME["accent_yellow"],
+            font=("Arial", 9),
+            wraplength=200,
+            justify="right",
         )
-        self.labels["device"].pack(anchor="w", fill="x", pady=(0, 2))
+        self.labels["model"].pack(side="right")
 
-        # Volume line
-        self.labels["volume"] = tk.Label(
+        # Waveform canvas (centered) - increased height for better visibility
+        self.canvas = tk.Canvas(
             main_frame,
+            width=300,
+            height=120,
+            bg=THEME["bg_primary"],
+            highlightthickness=0,
+            bd=0,
+        )
+        self.canvas.pack(pady=(5, 8), fill="x")
+
+        # Level and device line - combined frame below waveform
+        level_device_frame = tk.Frame(main_frame, bg=THEME["bg_primary"])
+        level_device_frame.pack(fill="x", pady=(0, 2))
+
+        # Volume line - left side
+        self.labels["volume"] = tk.Label(
+            level_device_frame,
             text="🔊 Level: 0",
             bg=THEME["bg_primary"],
             fg=THEME["text_secondary"],
             font=("Arial", 8),
         )
-        self.labels["volume"].pack(anchor="w", pady=(0, 0))
+        self.labels["volume"].pack(side="left")
+
+        # Device line - right side
+        self.labels["device"] = tk.Label(
+            level_device_frame,
+            text="🎧 Default",
+            bg=THEME["bg_primary"],
+            fg=THEME["text_secondary"],
+            font=("Arial", 8),
+            wraplength=200,
+            justify="right",
+        )
+        self.labels["device"].pack(side="right")
+        
+        # Initialize empty waveform
+        self._draw_waveform()
 
     def start_recording(self, profile: str = "general") -> None:
         """Signal that recording has started."""
@@ -233,7 +259,12 @@ class STTOverlay:
 
         self.is_recording = False
         self.is_waiting_for_voice = False
+        
+        # Clear waveform buffer when stopping
+        self.waveform_buffer.clear()
+        
         self._schedule_update()
+        self._schedule_waveform_update()
 
         # Auto-hide after delay
         if self.auto_hide_delay > 0:
@@ -265,6 +296,95 @@ class STTOverlay:
 
         self.current_volume = volume
         self._schedule_update()
+
+    def update_waveform(self, samples: List[float]) -> None:
+        """Update the waveform display with new audio samples."""
+        if not self.enabled or not self.canvas:
+            return
+
+        # Add new samples to buffer
+        self.waveform_buffer.extend(samples)
+        
+        # Schedule waveform redraw
+        self._schedule_waveform_update()
+
+    def _schedule_waveform_update(self) -> None:
+        """Schedule a waveform update on the main thread (throttled)."""
+        if self.root is not None:
+            try:
+                # Throttle updates to ~30 FPS for performance
+                current_time = time.time()
+                if current_time - self._last_waveform_update > 0.033:  # ~30 FPS
+                    self._last_waveform_update = current_time
+                    self.root.after(0, self._draw_waveform)
+            except Exception as e:
+                logger.error(f"Failed to schedule waveform update: {e}")
+
+    def _draw_waveform(self) -> None:
+        """Draw the waveform on the canvas."""
+        if not self.enabled or not self.canvas:
+            return
+
+        try:
+            # Clear canvas
+            self.canvas.delete("all")
+            
+            canvas_width = self.canvas.winfo_width()
+            canvas_height = self.canvas.winfo_height()
+            
+            # Handle case when canvas isn't properly initialized yet
+            if canvas_width <= 1 or canvas_height <= 1:
+                canvas_width = 300
+                canvas_height = 120
+            
+            # Draw center line
+            center_y = canvas_height // 2
+            self.canvas.create_line(
+                0, center_y, canvas_width, center_y,
+                fill=THEME["text_secondary"], width=1
+            )
+            
+            # Draw waveform if we have samples
+            if len(self.waveform_buffer) < 2:
+                return
+                
+            samples = list(self.waveform_buffer)
+            
+            # Calculate x step size
+            x_step = canvas_width / len(samples) if samples else 1
+            
+            # Draw waveform lines with significantly increased amplitude
+            points = []
+            amplitude_scale = 4.5  # Much higher amplitude for better visibility
+            for i, sample in enumerate(samples):
+                x = i * x_step
+                # Clamp sample to prevent extreme values
+                clamped_sample = max(-1.0, min(1.0, sample))
+                # Apply amplitude scaling and use almost full canvas height
+                y = center_y - (clamped_sample * amplitude_scale * (canvas_height // 2 - 5))
+                points.extend([x, y])
+            
+            # Draw the waveform
+            if len(points) >= 4:  # Need at least 2 points (4 coordinates)
+                # Choose color based on recording state
+                if self.is_recording and not self.is_waiting_for_voice:
+                    waveform_color = THEME["accent_green"]
+                elif self.is_recording and self.is_waiting_for_voice:
+                    waveform_color = THEME["accent_yellow"]
+                else:
+                    waveform_color = THEME["accent_blue"]
+                
+                self.canvas.create_line(
+                    points,
+                    fill=waveform_color,
+                    width=4,  # Further increased line width for better visibility
+                    smooth=True,
+                    capstyle="round",
+                    joinstyle="round"
+                )
+                
+        except Exception as e:
+            logger.error(f"Failed to draw waveform: {e}")
 
     def set_status(self, status_text: str, color: str = THEME["text_primary"]) -> None:
         """Set custom status text."""
@@ -514,6 +634,11 @@ class UIManager:
         """Set volume level display."""
         if self.enabled and self.overlay:
             self.overlay.set_volume_level(volume)
+
+    def update_waveform(self, samples: List[float]) -> None:
+        """Update waveform display."""
+        if self.enabled and self.overlay:
+            self.overlay.update_waveform(samples)
 
     def cleanup(self) -> None:
         """Clean up UI resources."""

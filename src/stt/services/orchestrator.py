@@ -97,6 +97,9 @@ class STTOrchestrator:
             
             # Set up volume monitoring callback
             self.audio_recorder.set_volume_callback(self.ui_manager.set_volume_level)
+            
+            # Set up waveform visualization callback
+            self.audio_recorder.set_waveform_callback(self.ui_manager.update_waveform)
 
             # Start loading the Whisper model in the background
             print("🚀 Starting model loading and recording...")
