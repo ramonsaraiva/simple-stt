@@ -283,41 +283,103 @@ class STTOrchestrator:
             devices = self.audio_recorder.list_input_devices()
             current_device_index = self.config.get("audio.device_index", None)
             current_device_name = self.audio_recorder.get_selected_device_name()
+            
+            # Get device priorities
+            def get_device_priority(device_name: str) -> tuple[int, str]:
+                name_lower = device_name.lower()
+                virtual_keywords = ['pulse', 'shared', 'virtual', 'remap']
+                headset_keywords = ['arctis', 'corsair', 'razer', 'hyperx', 'steelseries']
+                usb_mic_keywords = ['yeti', 'audio-technica', 'rode', 'samson', 'shure']
+                webcam_keywords = ['logitech', 'brio', 'webcam', 'camera']
+                
+                if any(kw in name_lower for kw in virtual_keywords):
+                    return (1, "🟢 Virtual/Shared")
+                elif any(kw in name_lower for kw in headset_keywords):
+                    return (2, "🎧 Gaming Headset")
+                elif any(kw in name_lower for kw in usb_mic_keywords):
+                    return (3, "🎙️ USB Microphone")
+                elif any(kw in name_lower for kw in webcam_keywords):
+                    return (4, "📹 Webcam")
+                else:
+                    return (5, "❓ Other")
 
             print("🎤 Available audio input devices:")
             print()
+            
+            # Auto-selected device (what would be chosen if no device is configured)
+            auto_selected = None
+            if current_device_index is None:
+                auto_selected = self.audio_recorder.find_preferred_device()
             
             for device in devices:
                 index = device['index']
                 name = device['name']
                 channels = device['channels']
                 sample_rate = int(device['default_sample_rate'])
+                backend = device.get('backend', 'pyaudio')
+                priority, category = get_device_priority(name)
                 
-                # Mark current device
-                marker = "👈 CURRENT" if index == current_device_index else ""
-                if current_device_index is None and index == 0:
-                    # If no device is configured, assume index 0 is default
-                    try:
-                        default_device = self.audio_recorder.audio.get_default_input_device_info()
-                        if default_device['index'] == index:
-                            marker = "👈 DEFAULT"
-                    except:
-                        pass
+                # Determine markers
+                markers = []
+                if str(index) == str(current_device_index):
+                    markers.append("👈 CURRENT")
+                elif current_device_index is None and index == auto_selected:
+                    markers.append("⭐ AUTO-SELECTED")
                 
-                print(f"  [{index:2d}] {name}")
-                print(f"       Channels: {channels}, Sample Rate: {sample_rate} Hz {marker}")
+                marker_str = " ".join(markers)
+                backend_str = f"[{backend.upper()}]" if backend == 'pulseaudio' else ""
+                
+                print(f"  [{str(index):>8}] {name} {backend_str}")
+                print(f"           {category} | Channels: {channels}, Sample Rate: {sample_rate} Hz")
+                if marker_str:
+                    print(f"           {marker_str}")
                 print()
 
             print(f"🎯 Currently selected: {current_device_name}")
+            if current_device_index is None:
+                print("📝 No device configured - using auto-selection based on priority")
             print()
-            print("💡 To change device, add to your config.yaml:")
-            print("   audio:")
-            print("     device_index: <index_number>")
+            print("💡 To change device:")
+            print("   stt --set-device <index_number>")
+            print("   OR add to your config.yaml:")
+            print("     audio:")
+            print("       device_index: <index_number>")
 
         except Exception as e:
             logger.error(f"Failed to list audio devices: {e}")
             print(f"❌ Failed to list audio devices: {e}")
             raise STTError(f"Failed to list audio devices: {e}") from e
+
+    def set_audio_device(self, device_index: str) -> None:
+        """Set the audio device by index."""
+        try:
+            # Validate device index exists
+            devices = self.audio_recorder.list_input_devices()
+            device_indices = [str(d['index']) for d in devices]
+            
+            if str(device_index) not in device_indices:
+                print(f"❌ Invalid device index: {device_index}")
+                print("Available device indices:", device_indices)
+                return
+            
+            # Find the device name
+            device_name = None
+            for device in devices:
+                if str(device['index']) == str(device_index):
+                    device_name = device['name']
+                    break
+            
+            # Update config
+            self.config.set("audio.device_index", device_index)
+            self.config.save()
+            
+            print(f"✅ Audio device set to: [{device_index}] {device_name}")
+            print("Device will be used for the next recording session.")
+            
+        except Exception as e:
+            logger.error(f"Failed to set audio device: {e}")
+            print(f"❌ Failed to set audio device: {e}")
+            raise STTError(f"Failed to set audio device: {e}") from e
 
     def cleanup(self) -> None:
         """Clean up resources."""

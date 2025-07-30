@@ -353,15 +353,15 @@ class STTOverlay:
             # Calculate x step size
             x_step = canvas_width / len(samples) if samples else 1
             
-            # Draw waveform lines with significantly increased amplitude
+            # Draw waveform lines with moderate amplitude scaling
             points = []
-            amplitude_scale = 4.5  # Much higher amplitude for better visibility
+            amplitude_scale = 1.5  # Reduced amplitude for better control with sensitive mics
             for i, sample in enumerate(samples):
                 x = i * x_step
                 # Clamp sample to prevent extreme values
                 clamped_sample = max(-1.0, min(1.0, sample))
-                # Apply amplitude scaling and use almost full canvas height
-                y = center_y - (clamped_sample * amplitude_scale * (canvas_height // 2 - 5))
+                # Apply amplitude scaling and use reasonable canvas height
+                y = center_y - (clamped_sample * amplitude_scale * (canvas_height // 2 - 10))
                 points.extend([x, y])
             
             # Draw the waveform
@@ -377,7 +377,7 @@ class STTOverlay:
                 self.canvas.create_line(
                     points,
                     fill=waveform_color,
-                    width=4,  # Further increased line width for better visibility
+                    width=2,  # Reduced line width for cleaner look
                     smooth=True,
                     capstyle="round",
                     joinstyle="round"
@@ -464,8 +464,11 @@ class STTOverlay:
                 text=f"🎧 {device_text}", fg=THEME["text_secondary"]
             )
 
-            # Update volume
-            volume_level = int(self.current_volume)
+            # Update volume (handle NaN values)
+            try:
+                volume_level = int(self.current_volume) if not (self.current_volume != self.current_volume) else 0  # Check for NaN
+            except (ValueError, OverflowError):
+                volume_level = 0
             volume_color = THEME["text_secondary"]
             if self.is_recording and not self.is_waiting_for_voice:
                 # Show volume level with color coding during active recording

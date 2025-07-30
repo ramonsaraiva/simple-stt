@@ -10,6 +10,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pyaudio
+import subprocess
 
 from ..config.manager import ConfigManager
 
@@ -58,7 +59,7 @@ class AudioRecorder:
             ) from e
 
     def list_input_devices(self) -> List[Dict[str, any]]:
-        """List available input audio devices.
+        """List available input audio devices from both PyAudio and PulseAudio.
         
         Returns:
             List of device info dictionaries
@@ -69,6 +70,7 @@ class AudioRecorder:
         devices = []
         device_count = self.audio.get_device_count()
         
+        # Add PyAudio devices
         for i in range(device_count):
             device_info = self.audio.get_device_info_by_index(i)
             # Only include input devices
@@ -77,7 +79,27 @@ class AudioRecorder:
                     'index': i,
                     'name': device_info['name'],
                     'channels': device_info['maxInputChannels'],
-                    'default_sample_rate': device_info['defaultSampleRate']
+                    'default_sample_rate': device_info['defaultSampleRate'],
+                    'backend': 'pyaudio'
+                })
+        
+        # Add PulseAudio sources that PyAudio might miss
+        pulse_sources = self._get_pulse_input_sources()
+        for source in pulse_sources:
+            # Check if this source is already in PyAudio devices
+            already_exists = any(
+                source['name'].replace('alsa_input.', '').replace('usb-', '').replace('-00', '').lower() 
+                in device['name'].lower().replace(' ', '').replace(':', '').replace('_', '')
+                for device in devices
+            )
+            
+            if not already_exists:
+                devices.append({
+                    'index': f"pulse:{source['pulse_index']}",
+                    'name': f"{source['name']} (PulseAudio)",
+                    'channels': source['channels'],
+                    'default_sample_rate': source['sample_rate'],
+                    'backend': 'pulseaudio'
                 })
         
         return devices
@@ -109,6 +131,258 @@ class AudioRecorder:
             pass
         
         return f"Device {device_index}"
+    
+    def find_preferred_device(self) -> Optional[int]:
+        """Find the preferred microphone device based on priority.
+        
+        Priority order:
+        1. Virtual/shared sources (pulse, virtual, shared)
+        2. Headset/gaming mics (arctis, corsair, razer, etc.)
+        3. USB mics (blue yeti, audio-technica, etc.)
+        4. Webcam mics (logitech, etc.)
+        
+        Returns:
+            Device index if found, None otherwise
+        """
+        if not self.audio:
+            return None
+            
+        try:
+            devices = self.list_input_devices()
+            
+            # Priority lists for device matching
+            virtual_keywords = ['pulse', 'shared', 'virtual', 'remap']
+            headset_keywords = ['arctis', 'corsair', 'razer', 'hyperx', 'steelseries']
+            usb_mic_keywords = ['yeti', 'audio-technica', 'rode', 'samson', 'shure']
+            webcam_keywords = ['logitech', 'brio', 'webcam', 'camera']
+            
+            def device_priority(device_name: str) -> int:
+                name_lower = device_name.lower()
+                if any(kw in name_lower for kw in virtual_keywords):
+                    return 1
+                elif any(kw in name_lower for kw in headset_keywords):
+                    return 2
+                elif any(kw in name_lower for kw in usb_mic_keywords):
+                    return 3
+                elif any(kw in name_lower for kw in webcam_keywords):
+                    return 4
+                else:
+                    return 5
+            
+            # Sort devices by priority
+            sorted_devices = sorted(devices, key=lambda d: device_priority(d['name']))
+            
+            if sorted_devices:
+                preferred = sorted_devices[0]
+                logger.info(f"Auto-selected preferred device: {preferred['name']} (index {preferred['index']})")
+                return preferred['index']
+                
+        except Exception as e:
+            logger.warning(f"Could not find preferred device: {e}")
+        
+        return None
+    
+    def _get_pulse_input_sources(self) -> List[Dict[str, any]]:
+        """Get PulseAudio input sources that might not be visible to PyAudio."""
+        try:
+            # Run pactl to get source list
+            result = subprocess.run(
+                ['pactl', 'list', 'sources', 'short'],
+                capture_output=True, text=True, check=True
+            )
+            
+            sources = []
+            for line in result.stdout.strip().split('\n'):
+                if not line.strip():
+                    continue
+                    
+                parts = line.split('\t')
+                if len(parts) >= 4:
+                    pulse_index = int(parts[0])
+                    source_name = parts[1]
+                    
+                    # Skip monitor sources (they're outputs, not inputs)
+                    if '.monitor' in source_name:
+                        continue
+                        
+                    # Parse sample format for channels and sample rate
+                    format_str = parts[3] if len(parts) > 3 else "s16le 1ch 48000Hz"
+                    channels = 1
+                    sample_rate = 48000
+                    
+                    # Extract channels and sample rate from format string
+                    if 'ch' in format_str:
+                        try:
+                            ch_part = format_str.split('ch')[0].split()[-1]
+                            channels = int(ch_part)
+                        except:
+                            pass
+                    
+                    if 'Hz' in format_str:
+                        try:
+                            hz_part = format_str.split('Hz')[0].split()[-1]
+                            sample_rate = int(hz_part)
+                        except:
+                            pass
+                    
+                    # Create a friendly name for known devices
+                    friendly_name = source_name
+                    if 'Arctis' in source_name or 'arctis' in source_name:
+                        if 'shared' in source_name:
+                            friendly_name = "Arctis Nova Shared"
+                        else:
+                            friendly_name = "Arctis Nova Pro Wireless"
+                    elif 'shared' in source_name:
+                        friendly_name = f"Shared Audio ({source_name})"
+                    
+                    sources.append({
+                        'pulse_index': pulse_index,
+                        'name': friendly_name,
+                        'raw_name': source_name,
+                        'channels': channels,
+                        'sample_rate': sample_rate
+                    })
+            
+            return sources
+            
+        except Exception as e:
+            logger.warning(f"Failed to get PulseAudio sources: {e}")
+            return []
+    
+    def _record_with_pulseaudio(
+        self, 
+        pulse_device_index: str, 
+        voice_detected_callback: Optional[Callable[[], None]],
+        sample_rate: int,
+        channels: int, 
+        chunk_size: int,
+        silence_threshold: float,
+        voice_threshold: float,
+        silence_duration: float,
+        max_recording_time: float
+    ) -> Optional[Path]:
+        """Record audio using PulseAudio (parec) for devices not accessible via PyAudio."""
+        
+        # Extract pulse source index
+        pulse_index = pulse_device_index.replace("pulse:", "")
+        
+        logger.info(f"Recording with PulseAudio source {pulse_index}")
+        logger.info(f"Voice detection thresholds: silence={silence_threshold}, voice={voice_threshold}")
+        print("🎤 Waiting for voice... (using PulseAudio backend)")
+        
+        try:
+            # Use parec to record from specific PulseAudio source
+            # We'll record continuously and process in chunks
+            cmd = [
+                'parec',
+                '--device', pulse_index,
+                '--format', 's16le',
+                '--rate', str(sample_rate),
+                '--channels', str(channels),
+            ]
+            
+            # Start parec process
+            process = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+            
+            self.frames = []
+            self.silence_start_time = None
+            voice_detected = False
+            start_time = time.time()
+            chunk_count = 0  # For debug logging
+            
+            # Read chunks from parec
+            chunk_bytes = chunk_size * channels * 2  # 2 bytes per sample (s16le)
+            
+            while True:
+                # Check if process is still running
+                if process.poll() is not None:
+                    logger.error("parec process terminated unexpectedly")
+                    break
+                
+                # Read chunk from process
+                try:
+                    data = process.stdout.read(chunk_bytes)
+                    if not data:
+                        break
+                        
+                    self.frames.append(data)
+                    
+                    # Calculate volume for this chunk
+                    audio_data = np.frombuffer(data, dtype=np.int16)
+                    if len(audio_data) > 0:
+                        mean_squared = np.mean(audio_data.astype(np.float64)**2)
+                        volume = np.sqrt(mean_squared) if mean_squared >= 0 else 0.0
+                        # Ensure volume is not NaN or infinite
+                        if np.isnan(volume) or np.isinf(volume):
+                            volume = 0.0
+                    else:
+                        volume = 0.0
+                    self.current_volume = volume
+                    
+                    # Call volume callback if set
+                    if self.volume_callback:
+                        self.volume_callback(volume)
+                    
+                    # Call waveform callback if set
+                    if self.waveform_callback:
+                        normalized_samples = audio_data.astype(np.float32) / 32768.0
+                        downsample_factor = max(1, len(normalized_samples) // 200)
+                        waveform_data = normalized_samples[::downsample_factor].tolist()
+                        self.waveform_callback(waveform_data)
+
+                    # Voice activity detection logic (same as PyAudio version)
+                    chunk_count += 1
+                    if not voice_detected:
+                        # Log volume levels every 10 chunks to see what's happening
+                        if chunk_count % 10 == 0:
+                            logger.info(f"Waiting for voice: volume={volume:.1f}, threshold={voice_threshold:.1f}")
+                        if volume >= voice_threshold:
+                            voice_detected = True
+                            logger.info(f"Voice activity detected! volume={volume:.1f} >= threshold={voice_threshold}")
+                            print("🗣️ Voice detected! Recording... (will stop after silence)")
+                            if voice_detected_callback:
+                                voice_detected_callback()
+                            else:
+                                logger.warning("voice_detected_callback is None!")
+                    else:
+                        if volume < silence_threshold:
+                            if self.silence_start_time is None:
+                                self.silence_start_time = time.time()
+                            elif time.time() - self.silence_start_time > silence_duration:
+                                logger.info("Silence detected, stopping recording")
+                                print("🔇 Silence detected, stopping recording...")
+                                break
+                        else:
+                            self.silence_start_time = None
+
+                    # Safety timeout
+                    if time.time() - start_time > max_recording_time:
+                        logger.warning("Maximum recording time reached, stopping")
+                        print("⏰ Max recording time reached, stopping...")
+                        break
+                        
+                except Exception as e:
+                    logger.warning(f"Error reading from parec: {e}")
+                    break
+            
+            # Clean up process
+            try:
+                process.terminate()
+                process.wait(timeout=2)
+            except:
+                process.kill()
+            
+            if not self.frames:
+                return None
+
+            # Save to temporary file (same format as PyAudio version)
+            return self._save_to_temp_file(sample_rate, channels, pyaudio.paInt16)
+            
+        except Exception as e:
+            logger.error(f"Failed to record with PulseAudio: {e}")
+            raise AudioError(f"PulseAudio recording failed: {e}") from e
     
     def set_volume_callback(self, callback: Callable[[float], None]) -> None:
         """Set callback to receive volume updates during recording.
@@ -156,8 +430,30 @@ class AudioRecorder:
         silence_duration = self.config.get("audio.silence_duration", 2.0)
         max_recording_time = self.config.get("audio.max_recording_time", 120.0)
         device_index = self.config.get("audio.device_index", None)
+        
+        # Try to use preferred device if no specific device configured
+        if device_index is None:
+            preferred_device = self.find_preferred_device()
+            if preferred_device is not None:
+                device_index = preferred_device
+                logger.info(f"Using auto-selected device at index {device_index}")
+
+        # For PulseAudio devices, use more sensitive thresholds
+        if isinstance(device_index, str) and device_index.startswith("pulse:"):
+            logger.info(f"Using PulseAudio device - adjusting thresholds for sensitivity")
+            voice_threshold = max(silence_threshold * 1.2, 15)  # Even more sensitive for PulseAudio
+            logger.info(f"Adjusted thresholds: silence={silence_threshold}, voice={voice_threshold}")
 
         try:
+            # Check if this is a PulseAudio device
+            if isinstance(device_index, str) and device_index.startswith("pulse:"):
+                return self._record_with_pulseaudio(
+                    device_index, voice_detected_callback, 
+                    sample_rate, channels, chunk_size, 
+                    silence_threshold, voice_threshold, 
+                    silence_duration, max_recording_time
+                )
+                
             stream_params = {
                 "format": audio_format,
                 "channels": channels,

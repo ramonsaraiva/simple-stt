@@ -66,6 +66,9 @@ Examples:
         "--list-devices", action="store_true", help="List all available audio input devices"
     )
     parser.add_argument(
+        "--set-device", type=str, help="Set the audio device by index (use --list-devices to see options)"
+    )
+    parser.add_argument(
         "--no-llm",
         action="store_true",
         help="Disable LLM refinement and use raw transcription",
@@ -87,6 +90,8 @@ Examples:
             orchestrator.list_profiles()
         elif args.list_devices:
             orchestrator.list_audio_devices()
+        elif args.set_device is not None:
+            orchestrator.set_audio_device(args.set_device)
         elif args.tune:
             orchestrator.tune_threshold()
         else:
