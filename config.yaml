@@ -1,16 +1,16 @@
 api_keys:
-  anthropic_api_key: ''
-  openai_api_key: ''
+  anthropic_api_key: ""
+  openai_api_key: ""
 audio:
   channels: 1
   chunk_size: 2048
-  device_index: pulse:14
+  device_index: pulse:62
   device_name: Default
   format: int16
   max_recording_time: 120.0
-  sample_rate: 16000
+  sample_rate: 48000
   silence_duration: 2.0
-  silence_threshold: 35
+  silence_threshold: 50
 clipboard:
   auto_paste: false
   paste_delay: 0.1
@@ -22,14 +22,16 @@ llm:
   profiles:
     general:
       name: General Text Cleanup
-      prompt: 'Please clean up and format this transcribed text,  fixing any grammar
+      prompt:
+        "Please clean up and format this transcribed text,  fixing any grammar
         issues and making it more readable. It is extremely important to maintain
         the original meaning and not add any additional information:
 
-        '
+        "
     slack:
       name: Slack Message
-      prompt: 'Convert this speech into a personalized Slack message. I do not use
+      prompt:
+        'Convert this speech into a personalized Slack message. I do not use
         capital letters to start phrases etc, but I do use capital "I" whenever I
         am refering to myself, i.e.: here is a slack message, I usually type in this
         way..
@@ -37,11 +39,12 @@ llm:
         '
     todo:
       name: Todo/Task
-      prompt: 'Convert this speech into a clear, actionable todo item or task description.
+      prompt:
+        "Convert this speech into a clear, actionable todo item or task description.
         Make it specific, concise, and action-oriented. Use bullet points (markdown
         format) if multiple tasks are mentioned:
 
-        '
+        "
   provider: openai
 ui:
   auto_hide_delay: 3.0

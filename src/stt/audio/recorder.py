@@ -11,6 +11,8 @@ from typing import Callable, Dict, List, Optional, Tuple
 import numpy as np
 import pyaudio
 import subprocess
+import select
+import fcntl
 
 from ..config.manager import ConfigManager
 
@@ -286,6 +288,11 @@ class AudioRecorder:
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
             )
             
+            # Make stdout non-blocking to prevent UI freezing
+            fd = process.stdout.fileno()
+            fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+            fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+            
             self.frames = []
             self.silence_start_time = None
             voice_detected = False
@@ -301,8 +308,13 @@ class AudioRecorder:
                     logger.error("parec process terminated unexpectedly")
                     break
                 
-                # Read chunk from process
+                # Read chunk from process (non-blocking)
                 try:
+                    # Use select to check if data is available
+                    ready, _, _ = select.select([process.stdout], [], [], 0.1)  # 100ms timeout
+                    if not ready:
+                        continue  # No data available, continue loop
+                        
                     data = process.stdout.read(chunk_bytes)
                     if not data:
                         break
@@ -321,14 +333,17 @@ class AudioRecorder:
                         volume = 0.0
                     self.current_volume = volume
                     
-                    # Call volume callback if set
-                    if self.volume_callback:
+                    # Call volume callback if set (throttled to ~10 FPS)
+                    current_time = time.time()
+                    if self.volume_callback and (not hasattr(self, '_last_volume_update') or current_time - self._last_volume_update > 0.1):
+                        self._last_volume_update = current_time
                         self.volume_callback(volume)
                     
-                    # Call waveform callback if set
-                    if self.waveform_callback:
+                    # Call waveform callback if set (throttled to ~15 FPS and reduced samples)
+                    if self.waveform_callback and (not hasattr(self, '_last_waveform_update') or current_time - self._last_waveform_update > 0.067):
+                        self._last_waveform_update = current_time
                         normalized_samples = audio_data.astype(np.float32) / 32768.0
-                        downsample_factor = max(1, len(normalized_samples) // 200)
+                        downsample_factor = max(1, len(normalized_samples) // 100)  # Reduced from 200 to 100 points
                         waveform_data = normalized_samples[::downsample_factor].tolist()
                         self.waveform_callback(waveform_data)
 
@@ -363,6 +378,9 @@ class AudioRecorder:
                         print("⏰ Max recording time reached, stopping...")
                         break
                         
+                except (BlockingIOError, OSError):
+                    # No data available right now, continue
+                    continue
                 except Exception as e:
                     logger.warning(f"Error reading from parec: {e}")
                     break
@@ -431,6 +449,12 @@ class AudioRecorder:
         max_recording_time = self.config.get("audio.max_recording_time", 120.0)
         device_index = self.config.get("audio.device_index", None)
         
+        # Convert string device indices to proper types
+        if isinstance(device_index, str):
+            if device_index.isdigit():
+                device_index = int(device_index)
+            # else keep as string for PulseAudio devices (pulse:XX)
+        
         # Try to use preferred device if no specific device configured
         if device_index is None:
             preferred_device = self.find_preferred_device()
@@ -486,16 +510,19 @@ class AudioRecorder:
                 volume = np.sqrt(np.mean(audio_data**2))
                 self.current_volume = volume
                 
-                # Call volume callback if set
-                if self.volume_callback:
+                # Call volume callback if set (throttled to ~10 FPS)
+                current_time = time.time()
+                if self.volume_callback and (not hasattr(self, '_last_volume_update') or current_time - self._last_volume_update > 0.1):
+                    self._last_volume_update = current_time
                     self.volume_callback(volume)
                 
-                # Call waveform callback if set (normalize to -1.0 to 1.0 range)
-                if self.waveform_callback:
+                # Call waveform callback if set (throttled to ~15 FPS and reduced samples)
+                if self.waveform_callback and (not hasattr(self, '_last_waveform_update') or current_time - self._last_waveform_update > 0.067):
+                    self._last_waveform_update = current_time
                     # Normalize int16 data to float range -1.0 to 1.0
                     normalized_samples = audio_data.astype(np.float32) / 32768.0
                     # Downsample for visualization (take every Nth sample for performance)
-                    downsample_factor = max(1, len(normalized_samples) // 200)  # Target ~200 points
+                    downsample_factor = max(1, len(normalized_samples) // 100)  # Reduced from 200 to 100 points
                     waveform_data = normalized_samples[::downsample_factor].tolist()
                     self.waveform_callback(waveform_data)
 

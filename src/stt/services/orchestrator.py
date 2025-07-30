@@ -369,8 +369,12 @@ class STTOrchestrator:
                     device_name = device['name']
                     break
             
-            # Update config
-            self.config.set("audio.device_index", device_index)
+            # Update config - convert to int if it's a numeric string
+            if isinstance(device_index, str) and device_index.isdigit():
+                config_value = int(device_index)
+            else:
+                config_value = device_index
+            self.config.set("audio.device_index", config_value)
             self.config.save()
             
             print(f"✅ Audio device set to: [{device_index}] {device_name}")

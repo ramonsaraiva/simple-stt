@@ -59,7 +59,7 @@ class STTOverlay:
         self.current_profile = "general"
         self.current_volume = 0.0
         self.device_name = "Default"
-        self.waveform_buffer: Deque[float] = deque(maxlen=300)  # Store last 300 samples
+        self.waveform_buffer: Deque[float] = deque(maxlen=150)  # Reduced to 150 samples for better performance
         self.canvas = None
         self._last_waveform_update = 0.0  # Throttle waveform updates
         self._mainloop_running = False
@@ -290,12 +290,13 @@ class STTOverlay:
         self._schedule_update()
 
     def set_volume_level(self, volume: float) -> None:
-        """Update the volume level display."""
+        """Update the volume level display (throttled)."""
         if not self.enabled:
             return
 
         self.current_volume = volume
-        self._schedule_update()
+        # Only update volume display, not full UI update (more efficient)
+        self._schedule_volume_update()
 
     def update_waveform(self, samples: List[float]) -> None:
         """Update the waveform display with new audio samples."""
@@ -312,9 +313,9 @@ class STTOverlay:
         """Schedule a waveform update on the main thread (throttled)."""
         if self.root is not None:
             try:
-                # Throttle updates to ~30 FPS for performance
+                # Throttle updates to ~20 FPS for better performance
                 current_time = time.time()
-                if current_time - self._last_waveform_update > 0.033:  # ~30 FPS
+                if current_time - self._last_waveform_update > 0.05:  # ~20 FPS
                     self._last_waveform_update = current_time
                     self.root.after(0, self._draw_waveform)
             except Exception as e:
@@ -410,6 +411,14 @@ class STTOverlay:
             except Exception as e:
                 logger.error(f"Failed to schedule UI update: {e}")
 
+    def _schedule_volume_update(self) -> None:
+        """Schedule a volume-only update on the main thread."""
+        if self.root is not None:
+            try:
+                self.root.after(0, self._update_volume_only)
+            except Exception as e:
+                logger.error(f"Failed to schedule volume update: {e}")
+
     def _update_display(self) -> None:
         """Update the display (must run on main thread)."""
         if not self.enabled or self.root is None:
@@ -485,6 +494,34 @@ class STTOverlay:
 
         except Exception as e:
             logger.error(f"Failed to update display: {e}")
+
+    def _update_volume_only(self) -> None:
+        """Update only the volume display (more efficient than full update)."""
+        if not self.enabled or self.root is None:
+            return
+
+        try:
+            # Update volume (handle NaN values)
+            try:
+                volume_level = int(self.current_volume) if not (self.current_volume != self.current_volume) else 0  # Check for NaN
+            except (ValueError, OverflowError):
+                volume_level = 0
+            volume_color = THEME["text_secondary"]
+            if self.is_recording and not self.is_waiting_for_voice:
+                # Show volume level with color coding during active recording
+                if volume_level > 100:
+                    volume_color = THEME["accent_green"]
+                elif volume_level > 50:
+                    volume_color = THEME["accent_yellow"]
+                else:
+                    volume_color = THEME["accent_red"]
+            
+            self.labels["volume"].config(
+                text=f"🔊 Level: {volume_level}", fg=volume_color
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to update volume display: {e}")
 
     def _on_window_configure(self, event) -> None:
         """Handle window resize events."""
